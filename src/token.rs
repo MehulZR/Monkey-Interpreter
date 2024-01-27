@@ -18,6 +18,19 @@ pub enum TokenType {
     RPAREN,
     LBRACE,
     RBRACE,
+    MINUS,
+    BANG,
+    ASTERISK,
+    SLASH,
+    LT,
+    GT,
+    TRUE,
+    FALSE,
+    IF,
+    ELSE,
+    RETURN,
+    EQ,
+    NOTEQ,
 }
 #[derive(Debug, PartialEq)]
 pub struct Token {
@@ -30,6 +43,11 @@ lazy_static! {
         let mut keywords = HashMap::new();
         keywords.insert("fn", TokenType::FUNCTION);
         keywords.insert("let", TokenType::LET);
+        keywords.insert("true", TokenType::TRUE);
+        keywords.insert("false", TokenType::FALSE);
+        keywords.insert("if", TokenType::IF);
+        keywords.insert("else", TokenType::ELSE);
+        keywords.insert("return", TokenType::RETURN);
         keywords
     };
 }
