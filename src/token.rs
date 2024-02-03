@@ -32,11 +32,6 @@ pub enum TokenType {
     EQ,
     NOTEQ,
 }
-#[derive(Debug, PartialEq)]
-pub struct Token {
-    pub r#type: TokenType,
-    pub literal: String,
-}
 
 lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, TokenType> = {
@@ -51,6 +46,13 @@ lazy_static! {
         keywords
     };
 }
+
+#[derive(Debug, PartialEq)]
+pub struct Token {
+    pub r#type: TokenType,
+    pub literal: String,
+}
+
 impl Token {
     pub fn lookup_ident(input: &str) -> TokenType {
         let mut token_type: TokenType = TokenType::IDENT;
