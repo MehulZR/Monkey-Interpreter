@@ -1,9 +1,9 @@
 use crate::token::Token;
 
-trait Node {
+pub trait Node {
     fn token_literal(&self) -> String;
 }
-struct Statement {}
+pub struct Statement {}
 impl Statement {
     pub fn _statement_node() {}
 }
@@ -12,7 +12,8 @@ impl Node for Statement {
         "Statement".to_string()
     }
 }
-struct Expression {}
+#[derive(Debug)]
+pub struct Expression {}
 impl Expression {
     pub fn _expression_node() {}
 }
@@ -21,18 +22,21 @@ impl Node for Expression {
         "Expression".to_string()
     }
 }
-struct Program {
-    statements: Vec<Statement>,
+pub struct Program {
+    pub statements: Vec<StatementTypes>,
 }
 fn something(p: &Program) -> String {
     match p.statements.len() {
         0 => "".to_string(),
-        _ => p.statements[0].token_literal(),
+        _ => match &p.statements[0] {
+            StatementTypes::LETSTATEMENT(obj) => obj.token_literal(),
+        },
     }
 }
-struct Identifier {
-    token: Token,
-    value: String,
+#[derive(Debug)]
+pub struct Identifier {
+    pub token: Token,
+    pub value: String,
 }
 impl Identifier {
     fn _expression_node() {}
@@ -42,10 +46,11 @@ impl Node for Identifier {
         self.token.literal.clone()
     }
 }
-struct LetStatement {
-    token: Token,
-    name: Identifier,
-    value: Expression,
+#[derive(Debug)]
+pub struct LetStatement {
+    pub token: Token,
+    pub name: Identifier,
+    pub value: Expression,
 }
 impl LetStatement {
     fn _expression_node() {}
@@ -54,4 +59,8 @@ impl Node for LetStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
+}
+#[derive(Debug)]
+pub enum StatementTypes {
+    LETSTATEMENT(LetStatement),
 }

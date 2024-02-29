@@ -47,7 +47,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     pub r#type: TokenType,
     pub literal: String,
