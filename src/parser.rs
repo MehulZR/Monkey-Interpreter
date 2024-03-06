@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast::Expression;
 use crate::ast::Identifier;
 use crate::ast::LetStatement;
@@ -12,7 +14,10 @@ struct Parser<'a> {
     cur_token: Token,
     peek_token: Token,
     errors: Vec<String>,
+    prefix_parse_fns: HashMap<TokenType, fn() -> Expression>,
+    infix_parse_fns: HashMap<TokenType, fn(exp: Expression) -> Expression>,
 }
+
 impl Parser<'_> {
     pub fn new(l: &mut Lexer) -> Parser {
         let mut p = Parser {
@@ -26,15 +31,19 @@ impl Parser<'_> {
                 literal: "".to_string(),
             },
             errors: vec![],
+            prefix_parse_fns: HashMap::new(),
+            infix_parse_fns: HashMap::new(),
         };
         p.next_token();
         p.next_token();
         p
     }
+
     pub fn next_token(&mut self) {
         self.cur_token = self.peek_token.clone();
         self.peek_token = self.l.next_token();
     }
+
     pub fn parse_program(&mut self) -> Option<Program> {
         let mut program = Program { statements: vec![] };
         while self.cur_token.r#type != TokenType::EOF {
@@ -46,6 +55,7 @@ impl Parser<'_> {
         }
         Some(program)
     }
+
     pub fn parse_statement(&mut self) -> Option<StatementTypes> {
         match self.cur_token.r#type {
             TokenType::LET => Some(self.parse_letstatement()),
@@ -53,7 +63,7 @@ impl Parser<'_> {
             _ => None,
         }
     }
-    // pub fn parse_letstatement(&self) -> Option<StatementTypes> {
+
     pub fn parse_letstatement(&mut self) -> StatementTypes {
         let mut stmt = LetStatement {
             token: self.cur_token.clone(),
@@ -84,6 +94,7 @@ impl Parser<'_> {
         // Some(StatementTypes::LETSTATEMENT(stmt))
         StatementTypes::LETSTATEMENT(stmt)
     }
+
     pub fn parse_return_statement(&mut self) -> StatementTypes {
         let stmt = ReturnStatement {
             token: self.cur_token.clone(),
@@ -98,12 +109,15 @@ impl Parser<'_> {
 
         StatementTypes::RETURNSTATEMENT(stmt)
     }
+
     pub fn cur_token_is(&self, token: TokenType) -> bool {
         return self.cur_token.r#type == token;
     }
+
     pub fn peek_token_is(&self, token: TokenType) -> bool {
         return self.peek_token.r#type == token;
     }
+
     pub fn expect_peek(&mut self, token: TokenType) -> bool {
         if self.peek_token_is(token) {
             self.next_token();
@@ -112,15 +126,25 @@ impl Parser<'_> {
             return false;
         }
     }
+
     pub fn errors(&self) -> Vec<String> {
         self.errors.clone()
     }
+
     pub fn peek_errors(&mut self, expected_token_type: Token) {
         self.errors.push(format!(
             "Expected next token to be {}, got {}",
             expected_token_type.literal,
             self.peek_token.literal.to_string(),
         ))
+    }
+
+    pub fn register_prefix(&mut self, token: TokenType, f: fn() -> Expression) {
+        self.prefix_parse_fns.insert(token, f);
+    }
+
+    pub fn register_infix(&mut self, token: TokenType, f: fn(exp: Expression) -> Expression) {
+        self.infix_parse_fns.insert(token, f);
     }
 }
 
