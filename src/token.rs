@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 
-#[derive(Eq, Hash, Debug, PartialEq, Clone)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     LET,
     FUNCTION,
