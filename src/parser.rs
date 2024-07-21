@@ -185,6 +185,7 @@ impl Parser<'_> {
             TokenType::TRUE | TokenType::FALSE => self.parse_boolean(),
             TokenType::LPAREN => self.parse_grouped_expression(),
             TokenType::IF => self.parse_if_expression(),
+            TokenType::FUNCTION => self.parse_fn_literal(),
             other => panic!("no prefix parse fn for {:?} defined", other),
         };
 
@@ -270,6 +271,7 @@ impl Parser<'_> {
             value: self.cur_token.literal.clone(),
         })
     }
+
     fn parse_integer(&mut self) -> EXPRESSION {
         let literal_val = match self.cur_token.literal.parse() {
             Ok(val) => val,
@@ -320,6 +322,58 @@ impl Parser<'_> {
             left: Box::new(left),
             right: Box::new(self.parse_expression(precedence)),
         })
+    }
+
+    fn parse_fn_literal(&mut self) -> EXPRESSION {
+        let token = self.cur_token.clone();
+
+        if !self.expect_peek(TokenType::LPAREN) {
+            panic!("Expected LPAREN not found while parsing fn literal");
+        }
+
+        let parameters = self.parse_fn_params();
+
+        if !self.expect_peek(TokenType::LBRACE) {
+            panic!("Expected LBRACE not found while parsing fn literal");
+        };
+
+        EXPRESSION::FN(FnExpression {
+            token,
+            parameters,
+            body: self.parse_block_statement(),
+        })
+    }
+
+    fn parse_fn_params(&mut self) -> Vec<Identifier> {
+        let mut params: Vec<Identifier> = vec![];
+
+        if self.peek_token_is(TokenType::RPAREN) {
+            self.next_token();
+            return params;
+        }
+
+        self.next_token();
+
+        params.push(Identifier {
+            token: self.cur_token.clone(),
+            value: self.cur_token.literal.clone(),
+        });
+
+        while self.peek_token_is(TokenType::COMMA) {
+            self.next_token();
+            self.next_token();
+
+            params.push(Identifier {
+                token: self.cur_token.clone(),
+                value: self.cur_token.literal.clone(),
+            });
+        }
+
+        if !self.expect_peek(TokenType::RPAREN) {
+            panic!("Expected RPAREN not found while parsing fn literal");
+        }
+
+        params
     }
 
     pub fn cur_token_is(&self, token: TokenType) -> bool {
@@ -1091,6 +1145,142 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_fn_literal_parsing() {
+        let input = "fn (x, y) { x + y; }".to_string();
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(p) => p,
+            None => panic!("parse_program returned nil"),
+        };
+
+        if program.statements.len() != 1 {
+            panic!(
+                "program.statements doesn't contain {} statements. Got {}",
+                1,
+                program.statements.len()
+            )
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "program.statements[0] is not ExpressionStatement. got: {:?}",
+                other
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            EXPRESSION::FN(exp) => exp,
+            _ => panic!("program.statement.expression is not of type fn_literal"),
+        };
+
+        if exp.parameters.len() != 2 {
+            panic!(
+                "fn literal params wrong. Want 2, got {}",
+                exp.parameters.len()
+            )
+        }
+
+        test_identifier(
+            &EXPRESSION::IDENTIFIER(exp.parameters[0].clone()),
+            "x".to_string(),
+        );
+        test_identifier(
+            &EXPRESSION::IDENTIFIER(exp.parameters[1].clone()),
+            "y".to_string(),
+        );
+
+        if exp.body.statements.len() != 1 {
+            panic!(
+                "fn.body.statements has not 1 statement. Got {}",
+                exp.body.statements.len()
+            )
+        }
+
+        let stmt = match &exp.body.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "fn.body.statement[0] is not ExpressionStatement. Got {:?}",
+                other
+            ),
+        };
+
+        test_infix_expression(
+            &stmt.expression,
+            "x".to_string(),
+            "+".to_string(),
+            "y".to_string(),
+        )
+    }
+
+    fn test_fn_params_parsing() {
+        struct Test {
+            input: String,
+            expected: Vec<String>,
+        }
+
+        let tests = vec![
+            Test {
+                input: "fn() {};".to_string(),
+                expected: vec![],
+            },
+            Test {
+                input: "fn(x) {};".to_string(),
+                expected: vec!["x".to_string()],
+            },
+            Test {
+                input: "fn(x, y, z) {};".to_string(),
+                expected: vec!["x".to_string(), "y".to_string(), "z".to_string()],
+            },
+        ];
+
+        for test in tests {
+            let mut l = Lexer::new(test.input);
+            let mut p = Parser::new(&mut l);
+
+            let program = p.parse_program();
+            check_parser_errors(&p);
+
+            let program = match program {
+                Some(p) => p,
+                None => panic!("parse_program returned nil"),
+            };
+
+            let stmt = match &program.statements[0] {
+                Statement::EXPRESSIONSTATEMENT(s) => s,
+                other => panic!(
+                    "fn.body.statement[0] is not ExpressionStatement. Got {:?}",
+                    other
+                ),
+            };
+
+            let fn_literal = match &stmt.expression {
+                EXPRESSION::FN(s) => s,
+                other => panic!("statement.exprssion is not fn_literal. Got {:?}", other),
+            };
+
+            if fn_literal.parameters.len() != test.expected.len() {
+                panic!(
+                    "length parameter wrong. want {}, got {}",
+                    test.expected.len(),
+                    fn_literal.parameters.len()
+                )
+            }
+
+            for (i, param) in test.expected.into_iter().enumerate() {
+                test_literal_expression(
+                    &EXPRESSION::IDENTIFIER(fn_literal.parameters[i].clone()),
+                    param,
+                )
+            }
+        }
+    }
     fn test_integer_literal(exp: &EXPRESSION, val: i64) {
         let integer_literal = match exp {
             EXPRESSION::INTEGER(obj) => obj,
