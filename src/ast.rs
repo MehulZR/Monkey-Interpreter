@@ -6,7 +6,7 @@ pub trait Node {
 }
 
 pub struct Program {
-    pub statements: Vec<StatementTypes>,
+    pub statements: Vec<Statement>,
 }
 
 impl Node for Program {
@@ -28,13 +28,13 @@ impl Node for Program {
 }
 
 #[derive(Debug)]
-pub enum StatementTypes {
+pub enum Statement {
     LETSTATEMENT(LetStatement),
     RETURNSTATEMENT(ReturnStatement),
     EXPRESSIONSTATEMENT(ExpressionStatement),
 }
 
-impl Node for StatementTypes {
+impl Node for Statement {
     fn token_literal(&self) -> String {
         match self {
             Self::LETSTATEMENT(stmt) => stmt.token_literal(),
@@ -115,6 +115,8 @@ pub enum EXPRESSION {
     INTEGER(IntegerLiteral),
     PREFIX(PrefixExpression),
     INFIX(InfixExpression),
+    BOOLEAN(BooleanExpression),
+    IF(IfExpression),
 }
 impl Node for EXPRESSION {
     fn token_literal(&self) -> String {
@@ -123,6 +125,8 @@ impl Node for EXPRESSION {
             EXPRESSION::INTEGER(obj) => obj.token_literal(),
             EXPRESSION::PREFIX(obj) => obj.token_literal(),
             EXPRESSION::INFIX(obj) => obj.token_literal(),
+            EXPRESSION::BOOLEAN(obj) => obj.token_literal(),
+            EXPRESSION::IF(obj) => obj.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -131,6 +135,8 @@ impl Node for EXPRESSION {
             EXPRESSION::INTEGER(obj) => obj.string(),
             EXPRESSION::PREFIX(obj) => obj.string(),
             EXPRESSION::INFIX(obj) => obj.string(),
+            EXPRESSION::BOOLEAN(obj) => obj.string(),
+            EXPRESSION::IF(obj) => obj.string(),
         }
     }
 }
@@ -203,6 +209,71 @@ impl Node for InfixExpression {
     }
 }
 
+#[derive(Debug)]
+pub struct BooleanExpression {
+    pub token: Token,
+    pub value: bool,
+}
+
+impl Node for BooleanExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+    fn string(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+#[derive(Debug)]
+pub struct IfExpression {
+    pub token: Token,
+    pub condition: Box<EXPRESSION>,
+    pub consequence: BlockStatement,
+    pub alternative: Option<BlockStatement>,
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+    fn string(&self) -> String {
+        let mut str = String::new();
+
+        str.push_str("if");
+        str.push_str(&self.condition.string());
+        str.push_str(" ");
+        str.push_str(&self.consequence.string());
+
+        if let Some(alt) = &self.alternative {
+            str.push_str("else ");
+            str.push_str(&alt.string());
+        };
+
+        str
+    }
+}
+
+#[derive(Debug)]
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statement>,
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+    fn string(&self) -> String {
+        let mut str = String::new();
+
+        for stmt in self.statements.iter() {
+            str.push_str(&stmt.string())
+        }
+
+        str
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -210,12 +281,12 @@ mod tests {
         token::{Token, TokenType},
     };
 
-    use super::{Identifier, LetStatement, Node, Program, StatementTypes};
+    use super::{Identifier, LetStatement, Node, Program, Statement};
 
     #[test]
     fn test_string() {
         let program = Program {
-            statements: vec![StatementTypes::LETSTATEMENT(LetStatement {
+            statements: vec![Statement::LETSTATEMENT(LetStatement {
                 token: Token {
                     r#type: TokenType::LET,
                     literal: "let".to_string(),

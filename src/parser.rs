@@ -74,23 +74,23 @@ impl Parser<'_> {
         Some(program)
     }
 
-    pub fn parse_statement(&mut self) -> Option<StatementTypes> {
+    pub fn parse_statement(&mut self) -> Option<Statement> {
         match self.cur_token.r#type {
             TokenType::LET => {
                 if let Some(stmt) = self.parse_let_statement() {
-                    return Some(StatementTypes::LETSTATEMENT(stmt));
+                    return Some(Statement::LETSTATEMENT(stmt));
                 }
                 None
             }
             TokenType::RETURN => {
                 if let Some(stmt) = self.parse_return_statement() {
-                    return Some(StatementTypes::RETURNSTATEMENT(stmt));
+                    return Some(Statement::RETURNSTATEMENT(stmt));
                 }
                 None
             }
             _ => {
                 if let Some(stmt) = self.parse_exp_statement() {
-                    return Some(StatementTypes::EXPRESSIONSTATEMENT(stmt));
+                    return Some(Statement::EXPRESSIONSTATEMENT(stmt));
                 }
                 None
             }
@@ -167,11 +167,24 @@ impl Parser<'_> {
         Some(stmt)
     }
 
+    fn parse_grouped_expression(&mut self) -> EXPRESSION {
+        self.next_token();
+
+        let exp = self.parse_expression(PrecedenceType::LOWEST);
+
+        self.next_token();
+
+        exp
+    }
+
     pub fn parse_expression(&mut self, precedence: PrecedenceType) -> EXPRESSION {
         let mut left = match self.cur_token.r#type {
             TokenType::IDENT => self.pares_identifier(),
             TokenType::INT => self.parse_integer(),
             TokenType::BANG | TokenType::MINUS => self.parse_prefix_expression(),
+            TokenType::TRUE | TokenType::FALSE => self.parse_boolean(),
+            TokenType::LPAREN => self.parse_grouped_expression(),
+            TokenType::IF => self.parse_if_expression(),
             other => panic!("no prefix parse fn for {:?} defined", other),
         };
 
@@ -195,6 +208,62 @@ impl Parser<'_> {
         left
     }
 
+    fn parse_if_expression(&mut self) -> EXPRESSION {
+        let token = self.cur_token.clone();
+
+        if !self.expect_peek(TokenType::LPAREN) {
+            panic!("Left paran not found")
+        }
+
+        self.next_token();
+
+        let condition = Box::new(self.parse_expression(PrecedenceType::LOWEST));
+
+        if !self.expect_peek(TokenType::RPAREN) {
+            panic!("Right paran not found")
+        }
+
+        if !self.expect_peek(TokenType::LBRACE) {
+            panic!("Left brace not found")
+        }
+
+        let consequence = self.parse_block_statement();
+        let mut alternative: Option<BlockStatement> = None;
+        if self.peek_token_is(TokenType::ELSE) {
+            self.next_token();
+
+            if !self.expect_peek(TokenType::LBRACE) {
+                panic!("left brace not found while parsing else part");
+            }
+
+            alternative = Some(self.parse_block_statement())
+        }
+        EXPRESSION::IF(IfExpression {
+            token,
+            condition,
+            consequence,
+            alternative,
+        })
+    }
+
+    fn parse_block_statement(&mut self) -> BlockStatement {
+        let mut block_stmt = BlockStatement {
+            token: self.cur_token.clone(),
+            statements: vec![],
+        };
+
+        self.next_token();
+
+        while !self.cur_token_is(TokenType::RBRACE) && !self.cur_token_is(TokenType::EOF) {
+            if let Some(stmt) = self.parse_statement() {
+                block_stmt.statements.push(stmt);
+                self.next_token();
+            }
+        }
+
+        block_stmt
+    }
+
     fn pares_identifier(&self) -> EXPRESSION {
         EXPRESSION::IDENTIFIER(Identifier {
             token: self.cur_token.clone(),
@@ -216,6 +285,13 @@ impl Parser<'_> {
         EXPRESSION::INTEGER(IntegerLiteral {
             token: self.cur_token.clone(),
             value: literal_val,
+        })
+    }
+
+    fn parse_boolean(&self) -> EXPRESSION {
+        EXPRESSION::BOOLEAN(BooleanExpression {
+            token: self.cur_token.clone(),
+            value: self.cur_token_is(TokenType::TRUE),
         })
     }
 
@@ -294,7 +370,7 @@ impl Parser<'_> {
 mod tests {
     use super::*;
     use crate::ast::Node;
-    use crate::ast::StatementTypes;
+    use crate::ast::Statement;
     use core::panic;
 
     fn check_parser_errors(p: &Parser) {
@@ -345,9 +421,9 @@ mod tests {
             }
         }
 
-        fn test_let_statement(statement: &StatementTypes, expected_identifier: &String) -> bool {
+        fn test_let_statement(statement: &Statement, expected_identifier: &String) -> bool {
             match statement {
-                StatementTypes::LETSTATEMENT(stmt) => {
+                Statement::LETSTATEMENT(stmt) => {
                     if stmt.name.value != expected_identifier.clone() {
                         return false;
                     }
@@ -397,9 +473,9 @@ mod tests {
             }
         }
 
-        fn test_return_statement(statement: &StatementTypes) -> bool {
+        fn test_return_statement(statement: &Statement) -> bool {
             match statement {
-                StatementTypes::RETURNSTATEMENT(stmt) => {
+                Statement::RETURNSTATEMENT(stmt) => {
                     if stmt.token_literal() != "return" {
                         println!("huaaaaaaaaaaaa");
                         return false;
@@ -432,7 +508,7 @@ mod tests {
         };
 
         let stmt = match &program.statements[0] {
-            StatementTypes::EXPRESSIONSTATEMENT(s) => s,
+            Statement::EXPRESSIONSTATEMENT(s) => s,
             other => panic!(
                 "program.statements[0] is not ExpressionStatement. got: {:?}",
                 other
@@ -481,7 +557,7 @@ mod tests {
         };
 
         let stmt = match &program.statements[0] {
-            StatementTypes::EXPRESSIONSTATEMENT(s) => s,
+            Statement::EXPRESSIONSTATEMENT(s) => s,
             other => panic!(
                 "program.statements[0] is not ExpressionStatement. got: {:?}",
                 other
@@ -506,45 +582,43 @@ mod tests {
         };
     }
 
-    fn test_integer_literal(exp: &EXPRESSION, val: i64) {
-        let integer_literal = match exp {
-            EXPRESSION::INTEGER(obj) => obj,
-            _ => panic!("exp not IntegerLiteral. Got {:?}", exp),
-        };
-
-        if integer_literal.value != val {
-            panic!(
-                "IntegerLiteral value not {}, Got {}",
-                val, integer_literal.value
-            )
-        }
-
-        if integer_literal.token_literal() != format!("{}", val) {
-            panic!(
-                "integerLiteral token_literal not {}. Got {}",
-                val,
-                integer_literal.token_literal()
-            )
-        }
-    }
-
     #[test]
     fn test_prefix_operator_expression() {
         struct Test {
             input: String,
             operator: String,
-            integer_val: i64,
+            val: String,
         }
         let tests = [
             Test {
                 input: "!5".into(),
                 operator: "!".into(),
-                integer_val: 5,
+                val: 5.to_string(),
             },
             Test {
                 input: "-15".into(),
                 operator: "-".into(),
-                integer_val: 15,
+                val: 15.to_string(),
+            },
+            Test {
+                input: "-15".into(),
+                operator: "-".into(),
+                val: 15.to_string(),
+            },
+            Test {
+                input: "-15".into(),
+                operator: "-".into(),
+                val: 15.to_string(),
+            },
+            Test {
+                input: "!true".into(),
+                operator: "!".into(),
+                val: true.to_string(),
+            },
+            Test {
+                input: "!false".into(),
+                operator: "!".into(),
+                val: false.to_string(),
             },
         ];
 
@@ -566,7 +640,7 @@ mod tests {
                 )
             };
             let stmt = match &program.statements[0] {
-                StatementTypes::EXPRESSIONSTATEMENT(s) => s,
+                Statement::EXPRESSIONSTATEMENT(s) => s,
                 other => panic!(
                     "program.statements[0] is not ExpressionStatement. got: {:?}",
                     other
@@ -588,7 +662,15 @@ mod tests {
                 )
             };
 
-            test_integer_literal(exp.right.as_ref(), test.integer_val)
+            match exp.right.as_ref() {
+                EXPRESSION::INTEGER(_) => {
+                    test_integer_literal(&exp.right.as_ref(), test.val.parse().unwrap())
+                }
+                EXPRESSION::BOOLEAN(_) => {
+                    test_boolean_literal(&exp.right.as_ref(), test.val.clone())
+                }
+                _ => panic!(""),
+            }
         }
     }
 
@@ -597,57 +679,75 @@ mod tests {
         struct Test {
             input: String,
             operator: String,
-            left_val: i64,
-            right_val: i64,
+            left_val: String,
+            right_val: String,
         }
         let tests = [
             Test {
                 input: "5 + 5".into(),
                 operator: "+".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 - 5".into(),
                 operator: "-".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 * 5".into(),
                 operator: "*".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 / 5".into(),
                 operator: "/".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 > 5".into(),
                 operator: ">".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 < 5".into(),
                 operator: "<".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 == 5".into(),
                 operator: "==".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
             },
             Test {
                 input: "5 != 5".into(),
                 operator: "!=".into(),
-                left_val: 5,
-                right_val: 5,
+                left_val: 5.to_string(),
+                right_val: 5.to_string(),
+            },
+            Test {
+                input: "true == true".into(),
+                operator: "==".into(),
+                left_val: true.to_string(),
+                right_val: true.to_string(),
+            },
+            Test {
+                input: "true != false".into(),
+                operator: "!=".into(),
+                left_val: true.to_string(),
+                right_val: false.to_string(),
+            },
+            Test {
+                input: "false == false".into(),
+                operator: "==".into(),
+                left_val: false.to_string(),
+                right_val: false.to_string(),
             },
         ];
 
@@ -669,30 +769,19 @@ mod tests {
                 )
             };
             let stmt = match &program.statements[0] {
-                StatementTypes::EXPRESSIONSTATEMENT(s) => s,
+                Statement::EXPRESSIONSTATEMENT(s) => s,
                 other => panic!(
                     "program.statements[0] is not ExpressionStatement. got: {:?}",
                     other
                 ),
             };
 
-            let exp = match &stmt.expression {
-                EXPRESSION::INFIX(obj) => obj,
-                other => panic!(
-                    "program.statement.expression is not of type prefix operator. Got {:?}",
-                    other
-                ),
-            };
-
-            if exp.operator != test.operator {
-                panic!(
-                    "Exp operator is not {:?}. got: {:?}",
-                    test.operator, exp.operator
-                )
-            };
-
-            test_integer_literal(exp.left.as_ref(), test.left_val);
-            test_integer_literal(exp.right.as_ref(), test.right_val);
+            test_infix_expression(
+                &stmt.expression,
+                test.left_val.to_string(),
+                test.operator.clone(),
+                test.right_val.to_string(),
+            )
         }
     }
 
@@ -752,6 +841,42 @@ mod tests {
                 input: "3 + 4 * 5 == 3 * 1 + 4 * 5".to_string(),
                 expected: "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))".to_string(),
             },
+            Test {
+                input: "true".to_string(),
+                expected: "true".to_string(),
+            },
+            Test {
+                input: "false".to_string(),
+                expected: "false".to_string(),
+            },
+            Test {
+                input: "3 > 5 == false".to_string(),
+                expected: "((3 > 5) == false)".to_string(),
+            },
+            Test {
+                input: "3 < 5 == true".to_string(),
+                expected: "((3 < 5) == true)".to_string(),
+            },
+            Test {
+                input: "1 + (2 + 3) + 4".to_string(),
+                expected: "((1 + (2 + 3)) + 4)".to_string(),
+            },
+            Test {
+                input: "(5 + 5) * 2".to_string(),
+                expected: "((5 + 5) * 2)".to_string(),
+            },
+            Test {
+                input: "2 / (5 + 5)".to_string(),
+                expected: "(2 / (5 + 5))".to_string(),
+            },
+            Test {
+                input: "-(5 + 5)".to_string(),
+                expected: "(-(5 + 5))".to_string(),
+            },
+            Test {
+                input: "!(true == true)".to_string(),
+                expected: "(!(true == true))".to_string(),
+            },
         ];
 
         for test in tests {
@@ -771,6 +896,285 @@ mod tests {
             if actual != test.expected {
                 panic!("Expected {}, Got {}", test.expected, actual)
             }
+        }
+    }
+
+    #[test]
+    fn test_boolean_expression() {
+        let input = "true;";
+
+        let mut l = Lexer::new(input.to_string());
+        let mut p = Parser::new(&mut l);
+        let program = p.parse_program();
+        check_parser_errors(&p);
+        let program = match program {
+            Some(p) => p,
+            None => panic!("parse_program returned nil"),
+        };
+
+        if program.statements.len() != 1 {
+            panic!(
+                "program has not enough statments. got: {}",
+                program.statements.len()
+            )
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "program.statements[0] is not ExpressionStatement. got: {:?}",
+                other
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            EXPRESSION::BOOLEAN(obj) => obj,
+            _ => panic!("program.statement.expression is not of type boolean"),
+        };
+
+        if exp.token.r#type != TokenType::TRUE && exp.token.r#type != TokenType::FALSE {
+            panic!("Exp not boolean. got: {:?}", exp.token.r#type)
+        };
+
+        if exp.value != true {
+            panic!("ident.value not true. got: {}", exp.value)
+        };
+
+        if exp.token_literal() != "true".to_string() {
+            panic!("ident.TokenLiteral not 5. got: {}", exp.token_literal())
+        };
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = "if (x < y) {x}".to_string();
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(p) => p,
+            None => panic!("parse_program returned nil"),
+        };
+
+        if program.statements.len() != 1 {
+            panic!(
+                "program.statements doesn't contain {} statements. Got {}",
+                1,
+                program.statements.len()
+            )
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "program.statements[0] is not ExpressionStatement. got: {:?}",
+                other
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            EXPRESSION::IF(exp) => exp,
+            _ => panic!("program.statement.expression is not of type ifExpression"),
+        };
+
+        test_infix_expression(
+            &exp.condition,
+            "x".to_string(),
+            "<".to_string(),
+            "y".to_string(),
+        );
+
+        if exp.consequence.statements.len() != 1 {
+            panic!(
+                "consequence is not 1 statements. got {}",
+                exp.consequence.statements.len()
+            )
+        };
+
+        let consequence = match &exp.consequence.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "program.statements[0] is not ExpressionStatement. got: {:?}",
+                other
+            ),
+        };
+
+        test_identifier(&consequence.expression, "x".to_string());
+
+        if let Some(e) = &exp.alternative {
+            panic!("exp.alternative.statements was not none. Got {:?}", e)
+        };
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input = "if (x < y) {x} else {y}".to_string();
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(p) => p,
+            None => panic!("parse_program returned nil"),
+        };
+
+        if program.statements.len() != 1 {
+            panic!(
+                "program.statements doesn't contain {} statements. Got {}",
+                1,
+                program.statements.len()
+            )
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "program.statements[0] is not ExpressionStatement. got: {:?}",
+                other
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            EXPRESSION::IF(exp) => exp,
+            _ => panic!("program.statement.expression is not of type ifExpression"),
+        };
+
+        test_infix_expression(
+            &exp.condition,
+            "x".to_string(),
+            "<".to_string(),
+            "y".to_string(),
+        );
+
+        if exp.consequence.statements.len() != 1 {
+            panic!(
+                "consequence is not 1 statements. got {}",
+                exp.consequence.statements.len()
+            )
+        };
+
+        let consequence = match &exp.consequence.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "consequence.statements[0] is not ExpressionStatement. got: {:?}",
+                other
+            ),
+        };
+
+        test_identifier(&consequence.expression, "x".to_string());
+
+        match &exp.alternative {
+            Some(obj) => {
+                if obj.statements.len() != 1 {
+                    panic!(
+                        "alternative is not 1 statements. Got {}",
+                        obj.statements.len()
+                    )
+                }
+
+                let alt = match &obj.statements[0] {
+                    Statement::EXPRESSIONSTATEMENT(s) => s,
+                    other => panic!(
+                        "alternative.statements[0] is not ExpressionStatement. got: {:?}",
+                        other
+                    ),
+                };
+
+                test_identifier(&alt.expression, "y".to_string());
+            }
+            None => panic!("exp.alternative is none"),
+        }
+    }
+
+    fn test_integer_literal(exp: &EXPRESSION, val: i64) {
+        let integer_literal = match exp {
+            EXPRESSION::INTEGER(obj) => obj,
+            _ => panic!("exp not IntegerLiteral. Got {:?}", exp),
+        };
+
+        if integer_literal.value != val {
+            panic!(
+                "IntegerLiteral value not {}, Got {}",
+                val, integer_literal.value
+            )
+        }
+
+        if integer_literal.token_literal() != format!("{}", val) {
+            panic!(
+                "integerLiteral token_literal not {}. Got {}",
+                val,
+                integer_literal.token_literal()
+            )
+        }
+    }
+
+    fn test_infix_expression(exp: &EXPRESSION, left: String, op: String, right: String) {
+        match exp {
+            EXPRESSION::INFIX(obj) => {
+                test_literal_expression(&obj.left, left);
+
+                if obj.operator != op {
+                    panic!("exp.operator is not {}. Got {}", op, obj.operator);
+                }
+
+                test_literal_expression(&obj.right, right);
+            }
+            other => panic!("exp is not infix expression. Got {:?}", other),
+        }
+    }
+
+    fn test_literal_expression(exp: &EXPRESSION, expected: String) {
+        match exp {
+            EXPRESSION::IDENTIFIER(_) => test_identifier(exp, expected),
+            EXPRESSION::INTEGER(_) => test_integer_literal(exp, expected.parse().unwrap()),
+            EXPRESSION::BOOLEAN(_) => test_boolean_literal(exp, expected),
+            other => panic!("type of exp not handled. Got {:?}", other),
+        }
+    }
+
+    fn test_boolean_literal(exp: &EXPRESSION, expected: String) {
+        match exp {
+            EXPRESSION::BOOLEAN(obj) => {
+                if obj.value != expected.parse().unwrap() {
+                    panic!(
+                        "booleanExpression value not {}. Got {}",
+                        expected, obj.value
+                    )
+                }
+
+                if obj.token_literal() != expected {
+                    panic!(
+                        "booleanExpression tokenLiteral not {}. Got {}",
+                        expected,
+                        obj.token_literal()
+                    )
+                }
+            }
+            other => panic!("exp not BooleanExpression. Got {:?}", other),
+        }
+    }
+
+    fn test_identifier(exp: &EXPRESSION, val: String) {
+        match exp {
+            EXPRESSION::IDENTIFIER(ident) => {
+                if ident.value != val {
+                    panic!("ident.value not {}. Got {}", val, ident.value)
+                }
+
+                if ident.token_literal() != val {
+                    panic!(
+                        "ident.token_literal not {}. Got {}",
+                        val,
+                        ident.token_literal()
+                    )
+                }
+            }
+            other => panic!("exp not idnetifier. Got {:?}", other),
         }
     }
 }
