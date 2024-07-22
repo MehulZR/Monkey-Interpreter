@@ -28,6 +28,7 @@ lazy_static! {
         keywords.insert(TokenType::MINUS, PrecedenceType::SUM);
         keywords.insert(TokenType::SLASH, PrecedenceType::PRODUCT);
         keywords.insert(TokenType::ASTERISK, PrecedenceType::PRODUCT);
+        keywords.insert(TokenType::LPAREN, PrecedenceType::CALL);
         keywords
     };
 }
@@ -111,26 +112,13 @@ impl Parser<'_> {
     }
 
     pub fn parse_let_statement(&mut self) -> Option<LetStatement> {
-        let mut stmt = LetStatement {
-            token: self.cur_token.clone(),
-            name: Identifier {
-                token: self.cur_token.clone(),
-                value: self.cur_token.literal.clone(),
-            },
-            value: EXPRESSION::IDENTIFIER(Identifier {
-                token: Token {
-                    r#type: TokenType::IDENT,
-                    literal: "".to_string(),
-                },
-                value: "".to_string(),
-            }),
-        };
+        let token = self.cur_token.clone();
 
         if !self.expect_peek(TokenType::IDENT) {
             return None;
         }
 
-        stmt.name = Identifier {
+        let identifier = Identifier {
             token: self.cur_token.clone(),
             value: self.cur_token.literal.clone(),
         };
@@ -139,7 +127,15 @@ impl Parser<'_> {
             return None;
         }
 
-        while !self.cur_token_is(TokenType::SEMICOLON) {
+        self.next_token();
+
+        let stmt = LetStatement {
+            token,
+            name: identifier,
+            value: self.parse_expression(PrecedenceType::LOWEST),
+        };
+
+        if self.peek_token_is(TokenType::SEMICOLON) {
             self.next_token();
         }
 
@@ -147,20 +143,16 @@ impl Parser<'_> {
     }
 
     pub fn parse_return_statement(&mut self) -> Option<ReturnStatement> {
-        let stmt = ReturnStatement {
-            token: self.cur_token.clone(),
-            return_value: EXPRESSION::IDENTIFIER(Identifier {
-                token: Token {
-                    r#type: TokenType::IDENT,
-                    literal: "".to_string(),
-                },
-                value: "".to_string(),
-            }),
-        };
+        let token = self.cur_token.clone();
 
         self.next_token();
 
-        while !self.cur_token_is(TokenType::SEMICOLON) {
+        let stmt = ReturnStatement {
+            token,
+            return_value: self.parse_expression(PrecedenceType::LOWEST),
+        };
+
+        if self.peek_token_is(TokenType::SEMICOLON) {
             self.next_token();
         }
 
@@ -201,6 +193,10 @@ impl Parser<'_> {
                 | TokenType::GT => {
                     self.next_token();
                     self.parse_infix_expression(left)
+                }
+                TokenType::LPAREN => {
+                    self.next_token();
+                    self.parse_call_expression(left)
                 }
                 _ => left,
             }
@@ -376,6 +372,40 @@ impl Parser<'_> {
         params
     }
 
+    fn parse_call_expression(&mut self, function: EXPRESSION) -> EXPRESSION {
+        EXPRESSION::CALL(CallExpression {
+            token: self.cur_token.clone(),
+            function: Box::new(function),
+            args: self.parse_call_args(),
+        })
+    }
+
+    fn parse_call_args(&mut self) -> Vec<EXPRESSION> {
+        let mut args = vec![];
+
+        if self.peek_token_is(TokenType::RPAREN) {
+            self.next_token();
+            return args;
+        }
+
+        self.next_token();
+
+        args.push(self.parse_expression(PrecedenceType::LOWEST));
+
+        while self.peek_token_is(TokenType::COMMA) {
+            self.next_token();
+            self.next_token();
+
+            args.push(self.parse_expression(PrecedenceType::LOWEST));
+        }
+
+        if !self.expect_peek(TokenType::RPAREN) {
+            panic!("Expected RPAREN while parsing call_expression_args")
+        }
+
+        args
+    }
+
     pub fn cur_token_is(&self, token: TokenType) -> bool {
         return self.cur_token.r#type == token;
     }
@@ -441,54 +471,72 @@ mod tests {
 
     #[test]
     fn test_let_statements() {
-        let input = "let x = 5;
-                 let y = 10;
-                 let foobar = 838383;";
-        let mut l = Lexer::new(input.to_string());
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-
-        check_parser_errors(&p);
-
-        let program = match program {
-            Some(p) => p,
-            None => panic!("parse_program returned nil"),
-        };
-
-        if program.statements.len() != 3 {
-            panic!(
-                "program.statements doesn't contain 3 statements. got {}",
-                program.statements.len()
-            )
+        struct Test {
+            input: String,
+            expected_identifier: String,
+            expected_val: String,
         }
 
-        let tests: Vec<String> = vec!["x".to_string(), "y".to_string(), "foobar".to_string()];
+        let tests = [
+            Test {
+                input: "let x = 5;".to_string(),
+                expected_identifier: "x".to_string(),
+                expected_val: "5".to_string(),
+            },
+            Test {
+                input: "let y = true;".to_string(),
+                expected_identifier: "y".to_string(),
+                expected_val: "true".to_string(),
+            },
+            Test {
+                input: "let foobar = y;".to_string(),
+                expected_identifier: "foobar".to_string(),
+                expected_val: "y".to_string(),
+            },
+        ];
 
-        for i in 0..tests.len() {
-            let current_test = tests.get(i).unwrap();
-            let statement = match program.statements.get(i) {
-                Some(s) => s,
-                None => panic!("Statement not found"),
+        for test in tests {
+            let mut l = Lexer::new(test.input.clone());
+            let mut p = Parser::new(&mut l);
+            let program = p.parse_program();
+            check_parser_errors(&p);
+
+            let program = match program {
+                Some(p) => p,
+                None => panic!("parse_program returned nil"),
             };
-            if !test_let_statement(&statement, current_test) {
-                panic!("Test failed! Ohh yeahh!")
-            }
-        }
 
-        fn test_let_statement(statement: &Statement, expected_identifier: &String) -> bool {
-            match statement {
-                Statement::LETSTATEMENT(stmt) => {
-                    if stmt.name.value != expected_identifier.clone() {
-                        return false;
-                    }
-                    if stmt.name.token_literal() != expected_identifier.clone() {
-                        return false;
-                    }
-                }
-                _ => panic!("Statement token literal not let"),
+            if program.statements.len() != 1 {
+                panic!(
+                    "program.statements doesn't contain 1 statements. got {}",
+                    program.statements.len()
+                )
             }
-            true
+
+            test_let_statement(&program.statements[0], &test.expected_identifier);
+
+            let stmt = match &program.statements[0] {
+                Statement::LETSTATEMENT(s) => s,
+                other => panic!("expected stmt to be of type letExpression. Got {:?}", other),
+            };
+
+            test_literal_expression(&stmt.value, test.expected_val);
         }
+    }
+
+    fn test_let_statement(statement: &Statement, expected_identifier: &String) -> bool {
+        match statement {
+            Statement::LETSTATEMENT(stmt) => {
+                if stmt.name.value != expected_identifier.clone() {
+                    return false;
+                }
+                if stmt.name.token_literal() != expected_identifier.clone() {
+                    return false;
+                }
+            }
+            _ => panic!("Statement token literal not let"),
+        }
+        true
     }
 
     #[test]
@@ -931,6 +979,18 @@ mod tests {
                 input: "!(true == true)".to_string(),
                 expected: "(!(true == true))".to_string(),
             },
+            Test {
+                input: "a + add(b * c) + d".to_string(),
+                expected: "((a + add((b * c))) + d)".to_string(),
+            },
+            Test {
+                input: "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))".to_string(),
+                expected: "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))".to_string(),
+            },
+            Test {
+                input: "add(a + b + c * d / f + g)".to_string(),
+                expected: "add((((a + b) + ((c * d) / f)) + g))".to_string(),
+            },
         ];
 
         for test in tests {
@@ -1219,6 +1279,7 @@ mod tests {
         )
     }
 
+    #[test]
     fn test_fn_params_parsing() {
         struct Test {
             input: String,
@@ -1281,6 +1342,122 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = "add(1, 2 * 3, 4 + 5)".to_string();
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(p) => p,
+            None => panic!("parse_program returned nil"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!(
+                "fn.body.statement[0] is not ExpressionStatement. Got {:?}",
+                other
+            ),
+        };
+
+        let call_expression = match &stmt.expression {
+            EXPRESSION::CALL(s) => s,
+            other => panic!("statement.exprssion is not fn_literal. Got {:?}", other),
+        };
+
+        test_identifier(&call_expression.function, "add".to_string());
+
+        if call_expression.args.len() != 3 {
+            panic!(
+                "length parameter wrong. want 3, got {}",
+                call_expression.args.len()
+            )
+        }
+
+        test_literal_expression(&call_expression.args[0], "1".to_string());
+        test_infix_expression(
+            &call_expression.args[1],
+            "2".to_string(),
+            "*".to_string(),
+            "3".to_string(),
+        );
+        test_infix_expression(
+            &call_expression.args[2],
+            "4".to_string(),
+            "+".to_string(),
+            "5".to_string(),
+        );
+    }
+
+    #[test]
+    fn test_call_expression_args_parsing() {
+        struct Test {
+            input: String,
+            expected: Vec<String>,
+        }
+
+        let tests = vec![
+            Test {
+                input: "add();".to_string(),
+                expected: vec![],
+            },
+            Test {
+                input: "add(x);".to_string(),
+                expected: vec!["x".to_string()],
+            },
+            Test {
+                input: "add(x, y, z);".to_string(),
+                expected: vec!["x".to_string(), "y".to_string(), "z".to_string()],
+            },
+        ];
+
+        for test in tests {
+            let mut l = Lexer::new(test.input);
+            let mut p = Parser::new(&mut l);
+
+            let program = p.parse_program();
+            check_parser_errors(&p);
+
+            let program = match program {
+                Some(p) => p,
+                None => panic!("parse_program returned nil"),
+            };
+
+            let stmt = match &program.statements[0] {
+                Statement::EXPRESSIONSTATEMENT(s) => s,
+                other => panic!(
+                    "fn.body.statement[0] is not ExpressionStatement. Got {:?}",
+                    other
+                ),
+            };
+
+            let call_expression = match &stmt.expression {
+                EXPRESSION::CALL(s) => s,
+                other => panic!(
+                    "statement.exprssion is not call_expression. Got {:?}",
+                    other
+                ),
+            };
+
+            if call_expression.args.len() != test.expected.len() {
+                panic!(
+                    "length parameter wrong. want {}, got {}",
+                    test.expected.len(),
+                    call_expression.args.len()
+                )
+            }
+
+            for (i, param) in test.expected.into_iter().enumerate() {
+                test_literal_expression(&call_expression.args[i], param)
+            }
+        }
+    }
+
     fn test_integer_literal(exp: &EXPRESSION, val: i64) {
         let integer_literal = match exp {
             EXPRESSION::INTEGER(obj) => obj,

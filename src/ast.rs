@@ -1,4 +1,4 @@
-use crate::token::{Token, TokenType};
+use crate::token::Token;
 
 pub trait Node {
     fn token_literal(&self) -> String;
@@ -118,6 +118,7 @@ pub enum EXPRESSION {
     BOOLEAN(BooleanExpression),
     IF(IfExpression),
     FN(FnExpression),
+    CALL(CallExpression),
 }
 impl Node for EXPRESSION {
     fn token_literal(&self) -> String {
@@ -129,6 +130,7 @@ impl Node for EXPRESSION {
             EXPRESSION::BOOLEAN(obj) => obj.token_literal(),
             EXPRESSION::IF(obj) => obj.token_literal(),
             EXPRESSION::FN(obj) => obj.token_literal(),
+            EXPRESSION::CALL(obj) => obj.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -140,6 +142,7 @@ impl Node for EXPRESSION {
             EXPRESSION::BOOLEAN(obj) => obj.string(),
             EXPRESSION::IF(obj) => obj.string(),
             EXPRESSION::FN(obj) => obj.string(),
+            EXPRESSION::CALL(obj) => obj.string(),
         }
     }
 }
@@ -302,6 +305,34 @@ impl Node for FnExpression {
         str.push_str(&params);
         str.push_str(")");
         str.push_str(&self.body.string());
+
+        str
+    }
+}
+
+#[derive(Debug)]
+pub struct CallExpression {
+    pub token: Token,
+    pub function: Box<EXPRESSION>,
+    pub args: Vec<EXPRESSION>,
+}
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+    fn string(&self) -> String {
+        let mut str = String::new();
+        let args = self
+            .args
+            .iter()
+            .map(|arg| arg.string())
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        str.push_str(&self.function.string());
+        str.push_str("(");
+        str.push_str(&args);
+        str.push_str(")");
 
         str
     }
