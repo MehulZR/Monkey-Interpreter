@@ -1,5 +1,7 @@
 use crate::{
-    lexer::*,
+    ast::Node,
+    lexer::Lexer,
+    parser::Parser,
     token::{Token, TokenType},
 };
 use lazy_static::lazy_static;
@@ -13,23 +15,44 @@ lazy_static! {
 }
 pub fn start() {
     let user = get_user_by_uid(get_current_uid()).unwrap();
+
     println!(
         "Hello {}! This is the Monkey programming language!",
         user.name().to_string_lossy()
     );
     println!("Feel free to type commands");
     print!(">> ");
+
     io::stdout().flush().unwrap();
+
     for line in io::stdin().lock().lines() {
         if let Ok(line) = line {
-            let mut lexer = Lexer::new(line);
-            let mut token = lexer.next_token();
-            while token != *EOF_TOKEN {
-                println!("{:?}", token);
-                token = lexer.next_token();
+            let mut l = Lexer::new(line);
+            let mut p = Parser::new(&mut l);
+            let program = p.parse_program();
+
+            let program = match program {
+                Some(p) => p,
+                None => panic!("Can't parse program"),
+            };
+
+            let errors = p.errors();
+            if errors.len() > 0 {
+                print_parser_errors(&errors);
+            } else {
+                println!("{}", program.string());
             }
         }
+
         print!(">> ");
         io::stdout().flush().unwrap();
+    }
+}
+
+fn print_parser_errors(errors: &[String]) {
+    println!("Woops! We ran into some monkey business here!");
+    println!("  parser errors:");
+    for err in errors {
+        println!("\t{}", err);
     }
 }

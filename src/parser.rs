@@ -33,7 +33,7 @@ lazy_static! {
     };
 }
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     l: &'a mut Lexer,
     cur_token: Token,
     peek_token: Token,
