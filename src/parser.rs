@@ -59,7 +59,7 @@ impl Parser<'_> {
         p
     }
 
-    pub fn next_token(&mut self) {
+    fn next_token(&mut self) {
         self.cur_token = self.peek_token.clone();
         self.peek_token = self.l.next_token();
     }
@@ -75,7 +75,7 @@ impl Parser<'_> {
         Some(program)
     }
 
-    pub fn parse_statement(&mut self) -> Option<Statement> {
+    fn parse_statement(&mut self) -> Option<Statement> {
         match self.cur_token.r#type {
             TokenType::LET => {
                 if let Some(stmt) = self.parse_let_statement() {
@@ -98,7 +98,7 @@ impl Parser<'_> {
         }
     }
 
-    pub fn parse_exp_statement(&mut self) -> Option<ExpressionStatement> {
+    fn parse_exp_statement(&mut self) -> Option<ExpressionStatement> {
         let stmt = ExpressionStatement {
             token: self.cur_token.clone(),
             expression: self.parse_expression(PrecedenceType::LOWEST),
@@ -111,7 +111,7 @@ impl Parser<'_> {
         Some(stmt)
     }
 
-    pub fn parse_let_statement(&mut self) -> Option<LetStatement> {
+    fn parse_let_statement(&mut self) -> Option<LetStatement> {
         let token = self.cur_token.clone();
 
         if !self.expect_peek(TokenType::IDENT) {
@@ -142,7 +142,7 @@ impl Parser<'_> {
         Some(stmt)
     }
 
-    pub fn parse_return_statement(&mut self) -> Option<ReturnStatement> {
+    fn parse_return_statement(&mut self) -> Option<ReturnStatement> {
         let token = self.cur_token.clone();
 
         self.next_token();
@@ -169,7 +169,7 @@ impl Parser<'_> {
         exp
     }
 
-    pub fn parse_expression(&mut self, precedence: PrecedenceType) -> EXPRESSION {
+    fn parse_expression(&mut self, precedence: PrecedenceType) -> EXPRESSION {
         let mut left = match self.cur_token.r#type {
             TokenType::IDENT => self.pares_identifier(),
             TokenType::INT => self.parse_integer(),
@@ -406,15 +406,15 @@ impl Parser<'_> {
         args
     }
 
-    pub fn cur_token_is(&self, token: TokenType) -> bool {
+    fn cur_token_is(&self, token: TokenType) -> bool {
         return self.cur_token.r#type == token;
     }
 
-    pub fn peek_token_is(&self, token: TokenType) -> bool {
+    fn peek_token_is(&self, token: TokenType) -> bool {
         return self.peek_token.r#type == token;
     }
 
-    pub fn expect_peek(&mut self, token: TokenType) -> bool {
+    fn expect_peek(&mut self, token: TokenType) -> bool {
         if self.peek_token_is(token.clone()) {
             self.next_token();
             return true;
@@ -428,21 +428,21 @@ impl Parser<'_> {
         self.errors.clone()
     }
 
-    pub fn peek_errors(&mut self, expected_token_type: TokenType) {
+    fn peek_errors(&mut self, expected_token_type: TokenType) {
         self.errors.push(format!(
             "Expected next token to be {:?}, got {:?}",
             expected_token_type, self.peek_token.r#type
         ))
     }
 
-    pub fn peek_precedence(&self) -> PrecedenceType {
+    fn peek_precedence(&self) -> PrecedenceType {
         match PRECEDENCES.get(&self.peek_token.r#type) {
             Some(p) => p.clone(),
             None => PrecedenceType::LOWEST,
         }
     }
 
-    pub fn cur_precedence(&self) -> PrecedenceType {
+    fn cur_precedence(&self) -> PrecedenceType {
         match PRECEDENCES.get(&self.cur_token.r#type) {
             Some(p) => p.clone(),
             None => PrecedenceType::LOWEST,
