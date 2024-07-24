@@ -1,31 +1,44 @@
 use crate::{
-    ast::{ExpressionStatement, Program, Statement, EXPRESSION},
-    object::{Boolean, Integer, Null, Object},
+    ast::{
+        BlockStatement, ExpressionStatement, IfExpression, Program, ReturnStatement, Statement,
+        EXPRESSION,
+    },
+    object::{Boolean, Integer, Null, Object, Return},
 };
 
-// static TRUE: Object = Object::BOOLEAN(Boolean { value: true });
-// static FALSE: Object = Object::BOOLEAN(Boolean { value: false });
-// static NULL: Object = Object::NULL(Null {});
+fn eval(program: Program) -> Object {
+    eval_statements(program.statements)
+}
 
-fn eval(program: Program) -> Vec<Object> {
-    let mut result = vec![];
-    for stmt in program.statements {
-        result.push(eval_statement(stmt));
+fn eval_statements(stmts: Vec<Statement>) -> Object {
+    let mut result = Object::NULL(Null {});
+
+    for stmt in stmts {
+        result = eval_statement(stmt);
+
+        if let Object::RETURN(o) = result {
+            return *o.value;
+        }
     }
+
     result
 }
 
 fn eval_statement(stmt: Statement) -> Object {
     match stmt {
         // Statement::LETSTATEMENT(s) => eval_let_statement(s),
-        // Statement::RETURNSTATEMENT(s) => eval_return_statement(s),
+        Statement::RETURNSTATEMENT(s) => eval_return_statement(s),
         Statement::EXPRESSIONSTATEMENT(s) => eval_expression_statement(s),
         other => panic!("no eval fn for stmt of type {:?}", other),
     }
 }
 
 // fn eval_let_statement(stmt: LetStatement) -> Object {}
-// fn eval_return_statement(stmt: ReturnStatement) -> Object {}
+fn eval_return_statement(stmt: ReturnStatement) -> Object {
+    Object::RETURN(Return {
+        value: Box::new(eval_expression(stmt.return_value)),
+    })
+}
 fn eval_expression_statement(stmt: ExpressionStatement) -> Object {
     eval_expression(stmt.expression)
 }
@@ -43,6 +56,7 @@ fn eval_expression(exp: EXPRESSION) -> Object {
             let right = eval_expression(*e.right);
             eval_infix_expression(e.operator, left, right)
         }
+        EXPRESSION::IF(e) => eval_if_expression(e),
         other => panic!("no eval fn for expression of type {:?}", other),
     }
 }
@@ -108,6 +122,42 @@ fn eval_minux_operator_expression(object: Object) -> Object {
     match object {
         Object::INTEGER(obj) => Object::INTEGER(Integer { value: -obj.value }),
         _ => Object::NULL(Null {}),
+    }
+}
+
+fn eval_if_expression(exp: IfExpression) -> Object {
+    let condition = eval_expression(*exp.condition);
+
+    if is_truthy(condition) {
+        // return eval_statements(exp.consequence.statements);
+        return eval_block_statements(exp.consequence);
+    }
+
+    match exp.alternative {
+        // Some(alt) => eval_statements(alt.statements),
+        Some(alt) => eval_block_statements(alt),
+        None => Object::NULL(Null {}),
+    }
+}
+
+fn eval_block_statements(block_stmt: BlockStatement) -> Object {
+    let mut result = Object::NULL(Null {});
+
+    for stmt in block_stmt.statements {
+        result = eval_statement(stmt);
+
+        if let Object::RETURN(_) = result {
+            return result;
+        }
+    }
+
+    result
+}
+fn is_truthy(obj: Object) -> bool {
+    match obj {
+        Object::NULL(_) => false,
+        Object::BOOLEAN(o) => o.value,
+        _ => true,
     }
 }
 
@@ -327,6 +377,96 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_if_else_expression() {
+        struct Test {
+            input: String,
+            expected: Option<i64>,
+        }
+
+        let tests = [
+            Test {
+                input: "if (true) { 10 }".to_string(),
+                expected: Some(10),
+            },
+            Test {
+                input: "if (false) { 10 }".to_string(),
+                expected: None,
+            },
+            Test {
+                input: "if (1) { 10 }".to_string(),
+                expected: Some(10),
+            },
+            Test {
+                input: "if (1 < 2) { 10 }".to_string(),
+                expected: Some(10),
+            },
+            Test {
+                input: "if (1 > 2) { 10 }".to_string(),
+                expected: None,
+            },
+            Test {
+                input: "if (1 > 2) { 10 } else { 20 }".to_string(),
+                expected: Some(20),
+            },
+            Test {
+                input: "if (1 < 2) { 10 } else { 20 }".to_string(),
+                expected: Some(10),
+            },
+        ];
+
+        for test in tests {
+            let evaluated = test_eval(test.input.clone());
+            match test.expected {
+                Some(num) => test_integer_object(evaluated, num),
+                None => test_null_object(evaluated),
+            }
+        }
+    }
+
+    #[test]
+    fn test_return_statements() {
+        struct Test {
+            input: String,
+            expected: i64,
+        }
+
+        let tests = [
+            Test {
+                input: "return 10;".to_string(),
+                expected: 10,
+            },
+            Test {
+                input: "return 10; 9;".to_string(),
+                expected: 10,
+            },
+            Test {
+                input: "return 2 * 5; 9;".to_string(),
+                expected: 10,
+            },
+            Test {
+                input: "9; return 2 * 5; 9;".to_string(),
+                expected: 10,
+            },
+            Test {
+                input: "if (10 > 1) { if (10 > 1) { return 10; } return 1; }".to_string(),
+                expected: 10,
+            },
+        ];
+
+        for test in tests {
+            let evaluated_val = test_eval(test.input);
+            test_integer_object(evaluated_val, test.expected);
+        }
+    }
+
+    fn test_null_object(obj: Object) {
+        match obj {
+            Object::NULL(_) => {}
+            other => panic!("Object is not of type null. Got {:?}", other),
+        }
+    }
+
     fn test_eval(input: String) -> Object {
         let mut l = Lexer::new(input);
         let mut p = Parser::new(&mut l);
@@ -335,7 +475,7 @@ mod tests {
             None => panic!("error while parsing program"),
         };
 
-        eval(program)[0].clone()
+        eval(program).clone()
     }
 
     fn test_integer_object(object: Object, expected: i64) {

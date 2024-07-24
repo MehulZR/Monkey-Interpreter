@@ -1,7 +1,10 @@
+use std::{fmt::Debug, ops::Deref};
+
 pub enum ObjectType {
     INTEGER,
     BOOLEAN,
     NULL,
+    RETURN,
 }
 
 pub trait ObjectTrait {
@@ -14,6 +17,7 @@ pub enum Object {
     INTEGER(Integer),
     BOOLEAN(Boolean),
     NULL(Null),
+    RETURN(Return),
 }
 
 #[derive(Debug, Clone)]
@@ -56,5 +60,25 @@ impl ObjectTrait for Null {
 
     fn inspect(&self) -> String {
         "null".to_string()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Return {
+    pub value: Box<Object>,
+}
+
+impl ObjectTrait for Return {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::RETURN
+    }
+
+    fn inspect(&self) -> String {
+        match self.value.deref() {
+            Object::INTEGER(o) => o.inspect(),
+            Object::BOOLEAN(o) => o.inspect(),
+            Object::NULL(o) => o.inspect(),
+            Object::RETURN(o) => o.inspect(),
+        }
     }
 }
