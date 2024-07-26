@@ -5,6 +5,7 @@ pub enum ObjectType {
     BOOLEAN,
     NULL,
     RETURN,
+    ERROR,
 }
 
 pub trait ObjectTrait {
@@ -18,6 +19,7 @@ pub enum Object {
     BOOLEAN(Boolean),
     NULL(Null),
     RETURN(Return),
+    ERROR(Error),
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +81,22 @@ impl ObjectTrait for Return {
             Object::BOOLEAN(o) => o.inspect(),
             Object::NULL(o) => o.inspect(),
             Object::RETURN(o) => o.inspect(),
+            Object::ERROR(o) => o.inspect(),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Error {
+    pub msg: String,
+}
+
+impl ObjectTrait for Error {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::ERROR
+    }
+
+    fn inspect(&self) -> String {
+        format!("Error: {}", self.msg.clone())
     }
 }
