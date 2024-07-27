@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Deref};
+use std::{collections::HashMap, fmt::Debug, ops::Deref};
 
 pub enum ObjectType {
     INTEGER,
@@ -98,5 +98,26 @@ impl ObjectTrait for Error {
 
     fn inspect(&self) -> String {
         format!("Error: {}", self.msg.clone())
+    }
+}
+
+#[derive(Debug)]
+pub struct Environment {
+    store: HashMap<String, Object>,
+}
+
+impl Environment {
+    pub fn new() -> Environment {
+        Environment {
+            store: HashMap::new(),
+        }
+    }
+    pub fn get(&self, name: &String) -> Option<&Object> {
+        self.store.get(name)
+    }
+
+    pub fn set(&mut self, name: String, obj: Object) -> Object {
+        self.store.insert(name.clone(), obj.clone());
+        obj.clone()
     }
 }
