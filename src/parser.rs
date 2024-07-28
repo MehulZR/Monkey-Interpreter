@@ -579,7 +579,6 @@ mod tests {
             match statement {
                 Statement::RETURNSTATEMENT(stmt) => {
                     if stmt.token_literal() != "return" {
-                        println!("huaaaaaaaaaaaa");
                         return false;
                     }
                 }

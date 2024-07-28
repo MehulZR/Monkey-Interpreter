@@ -1,4 +1,6 @@
-use std::{collections::HashMap, fmt::Debug, ops::Deref};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Deref, rc::Rc};
+
+use crate::ast::{BlockStatement, Identifier, Node};
 
 pub enum ObjectType {
     INTEGER,
@@ -6,6 +8,7 @@ pub enum ObjectType {
     NULL,
     RETURN,
     ERROR,
+    FUNCTION,
 }
 
 pub trait ObjectTrait {
@@ -20,6 +23,7 @@ pub enum Object {
     NULL(Null),
     RETURN(Return),
     ERROR(Error),
+    FN(Function),
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +86,7 @@ impl ObjectTrait for Return {
             Object::NULL(o) => o.inspect(),
             Object::RETURN(o) => o.inspect(),
             Object::ERROR(o) => o.inspect(),
+            Object::FN(o) => o.inspect(),
         }
     }
 }
@@ -101,23 +106,69 @@ impl ObjectTrait for Error {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub params: Vec<Identifier>,
+    pub body: BlockStatement,
+    pub env: Rc<RefCell<Environment>>,
+}
+
+impl ObjectTrait for Function {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::FUNCTION
+    }
+
+    fn inspect(&self) -> String {
+        let mut str = String::new();
+        let params = self
+            .params
+            .iter()
+            .map(|param| param.string())
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        str.push_str("fn(");
+        str.push_str(&params);
+        str.push_str("){\n");
+        str.push_str(&self.body.string());
+        str.push_str("\n}");
+
+        str
+    }
+}
+
 #[derive(Debug)]
 pub struct Environment {
     store: HashMap<String, Object>,
+    outer: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
     pub fn new() -> Environment {
         Environment {
             store: HashMap::new(),
+            outer: None,
         }
     }
-    pub fn get(&self, name: &String) -> Option<&Object> {
-        self.store.get(name)
+
+    pub fn get(&self, name: &String) -> Option<Object> {
+        match self.store.get(name) {
+            Some(obj) => Some(obj.clone()),
+            None => match &self.outer {
+                Some(outer_env) => outer_env.borrow().get(name),
+                None => None,
+            },
+        }
     }
 
-    pub fn set(&mut self, name: String, obj: Object) -> Object {
-        self.store.insert(name.clone(), obj.clone());
-        obj.clone()
+    pub fn set(&mut self, name: String, obj: Object) {
+        self.store.insert(name, obj.clone());
+    }
+}
+
+pub fn enclosed_environment(outer_env: &Rc<RefCell<Environment>>) -> Environment {
+    Environment {
+        store: HashMap::new(),
+        outer: Some(Rc::clone(outer_env)),
     }
 }
