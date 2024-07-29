@@ -134,6 +134,12 @@ impl Lexer {
                     literal: "".to_string(),
                 }
             }
+            b'"' => {
+                tok = Token {
+                    r#type: TokenType::STRING,
+                    literal: self.read_string(),
+                }
+            }
             b'!' => {
                 if self.peek_char() == b'=' {
                     self.read_char();
@@ -190,6 +196,18 @@ impl Lexer {
         tok
     }
 
+    fn read_string(&mut self) -> String {
+        let initial_positon = self.position + 1;
+        loop {
+            self.read_char();
+            if self.ch == b'"' || self.ch == b'0' {
+                break;
+            }
+        }
+
+        self.input[initial_positon..self.position].to_string()
+    }
+
     pub fn read_identifier(&mut self) -> String {
         let initial_position = self.position;
         while b'_' == self.ch || self.ch.is_ascii_alphabetic() {
@@ -222,7 +240,9 @@ mod tests {
                         return false;
                      }
                      10 == 10;
-                     10 != 9;";
+                     10 != 9;
+                     \"foobar\"
+                     \"foo bar\"";
 
         let tests: Vec<TestTokenType> = vec![
             TestTokenType {
@@ -516,6 +536,14 @@ mod tests {
             TestTokenType {
                 expected_token_type: TokenType::SEMICOLON,
                 expected_literal: ";".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::STRING,
+                expected_literal: "foobar".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::STRING,
+                expected_literal: "foo bar".to_string(),
             },
             TestTokenType {
                 expected_token_type: TokenType::EOF,

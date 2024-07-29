@@ -178,6 +178,7 @@ impl Parser<'_> {
             TokenType::LPAREN => self.parse_grouped_expression(),
             TokenType::IF => self.parse_if_expression(),
             TokenType::FUNCTION => self.parse_fn_literal(),
+            TokenType::STRING => self.parse_string_literal(),
             other => panic!("no prefix parse fn for {:?} defined", other),
         };
 
@@ -290,6 +291,13 @@ impl Parser<'_> {
         EXPRESSION::BOOLEAN(BooleanExpression {
             token: self.cur_token.clone(),
             value: self.cur_token_is(TokenType::TRUE),
+        })
+    }
+
+    fn parse_string_literal(&self) -> EXPRESSION {
+        EXPRESSION::StringLiteral(StringLiteral {
+            token: self.cur_token.clone(),
+            value: self.cur_token.literal.clone(),
         })
     }
 
@@ -1454,6 +1462,35 @@ mod tests {
             for (i, param) in test.expected.into_iter().enumerate() {
                 test_literal_expression(&call_expression.args[i], param)
             }
+        }
+    }
+    #[test]
+    fn test_string_literal() {
+        let input = "\"Hello World\"".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let literal = match &stmt.expression {
+            EXPRESSION::StringLiteral(s) => s,
+            other => panic!("expression not StringLiteral. Got: {:?}", other),
+        };
+
+        if literal.value != String::from("Hello World") {
+            panic!("Literal val not {}. Got: {}", "Hello World", literal.value);
         }
     }
 

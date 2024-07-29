@@ -119,6 +119,7 @@ pub enum EXPRESSION {
     IF(IfExpression),
     FN(FnExpression),
     CALL(CallExpression),
+    StringLiteral(StringLiteral),
 }
 impl Node for EXPRESSION {
     fn token_literal(&self) -> String {
@@ -131,6 +132,7 @@ impl Node for EXPRESSION {
             EXPRESSION::IF(obj) => obj.token_literal(),
             EXPRESSION::FN(obj) => obj.token_literal(),
             EXPRESSION::CALL(obj) => obj.token_literal(),
+            EXPRESSION::StringLiteral(obj) => obj.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -143,6 +145,7 @@ impl Node for EXPRESSION {
             EXPRESSION::IF(obj) => obj.string(),
             EXPRESSION::FN(obj) => obj.string(),
             EXPRESSION::CALL(obj) => obj.string(),
+            EXPRESSION::StringLiteral(obj) => obj.string(),
         }
     }
 }
@@ -335,6 +338,22 @@ impl Node for CallExpression {
         str.push_str(")");
 
         str
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StringLiteral {
+    pub token: Token,
+    pub value: String,
+}
+
+impl Node for StringLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        self.token.literal.clone()
     }
 }
 

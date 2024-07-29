@@ -31,6 +31,7 @@ pub enum TokenType {
     RETURN,
     EQ,
     NOTEQ,
+    STRING,
 }
 
 lazy_static! {

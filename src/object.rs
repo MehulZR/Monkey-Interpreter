@@ -9,6 +9,7 @@ pub enum ObjectType {
     RETURN,
     ERROR,
     FUNCTION,
+    STRING,
 }
 
 pub trait ObjectTrait {
@@ -24,6 +25,7 @@ pub enum Object {
     RETURN(Return),
     ERROR(Error),
     FN(Function),
+    STRING(StringLiteral),
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +59,20 @@ impl ObjectTrait for Boolean {
 }
 
 #[derive(Debug, Clone)]
+pub struct StringLiteral {
+    pub value: String,
+}
+
+impl ObjectTrait for StringLiteral {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::STRING
+    }
+
+    fn inspect(&self) -> String {
+        self.value.clone()
+    }
+}
+#[derive(Debug, Clone)]
 pub struct Null {}
 
 impl ObjectTrait for Null {
@@ -87,6 +103,7 @@ impl ObjectTrait for Return {
             Object::RETURN(o) => o.inspect(),
             Object::ERROR(o) => o.inspect(),
             Object::FN(o) => o.inspect(),
+            Object::STRING(o) => o.inspect(),
         }
     }
 }

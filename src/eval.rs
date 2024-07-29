@@ -7,6 +7,7 @@ use crate::{
     },
     object::{
         enclosed_environment, Boolean, Environment, Error, Function, Integer, Null, Object, Return,
+        StringLiteral,
     },
 };
 
@@ -98,6 +99,7 @@ fn eval_expression(exp: EXPRESSION, env: &Rc<RefCell<Environment>>) -> Object {
             }
             eval_infix_expression(e.operator, left, right)
         }
+        EXPRESSION::StringLiteral(e) => Object::STRING(StringLiteral { value: e.value }),
     }
 }
 
@@ -760,6 +762,21 @@ mod tests {
                 }
                 other => panic!("no error object returned. Got {:?}", other),
             }
+        }
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let input = "\"Hello World\"".to_string();
+
+        let evaluated_val = test_eval(input);
+        let string_object = match evaluated_val {
+            Object::STRING(o) => o,
+            other => panic!("Expected String object. Got: {:?}", other),
+        };
+
+        if string_object.value != "Hello World".to_string() {
+            panic!("StringObject has wrong value. Got: {}", string_object.value);
         }
     }
 
