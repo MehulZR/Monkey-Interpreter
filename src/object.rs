@@ -1,5 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Deref, rc::Rc};
 
+use lazy_static::lazy_static;
+
 use crate::ast::{BlockStatement, Identifier, Node};
 
 pub enum ObjectType {
@@ -10,6 +12,7 @@ pub enum ObjectType {
     ERROR,
     FUNCTION,
     STRING,
+    BUILTINFUNC,
 }
 
 pub trait ObjectTrait {
@@ -26,6 +29,7 @@ pub enum Object {
     ERROR(Error),
     FN(Function),
     STRING(StringLiteral),
+    BUILTINFUNC(BuiltInFunc),
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +108,7 @@ impl ObjectTrait for Return {
             Object::ERROR(o) => o.inspect(),
             Object::FN(o) => o.inspect(),
             Object::STRING(o) => o.inspect(),
+            Object::BUILTINFUNC(o) => o.inspect(),
         }
     }
 }
@@ -187,5 +192,53 @@ pub fn enclosed_environment(outer_env: &Rc<RefCell<Environment>>) -> Environment
     Environment {
         store: HashMap::new(),
         outer: Some(Rc::clone(outer_env)),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BuiltInFunc {
+    pub func: fn(arg: Vec<Object>) -> Object,
+}
+impl ObjectTrait for BuiltInFunc {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::BUILTINFUNC
+    }
+
+    fn inspect(&self) -> String {
+        "builtin function".to_string()
+    }
+}
+
+lazy_static! {
+    pub static ref BUILTINS: HashMap<&'static str, BuiltInFunc> = {
+        let mut builtins = HashMap::new();
+        builtins.insert("len", BuiltInFunc { func: monkey_len });
+        builtins
+    };
+}
+
+// pub fn Builtins() -> HashMap<&'static str, Object> {
+//     let mut builtins = HashMap::new();
+
+//     builtins.insert("len", Object::BUILTINFUNC(BuiltInFunc { func: monkey_len }));
+
+//     builtins
+// }
+
+fn monkey_len(args: Vec<Object>) -> Object {
+    if args.len() != 1 {
+        return Object::ERROR(Error {
+            msg: format!("wrong number of arguments. got={}, want={}", args.len(), 1),
+        });
+    }
+
+    match &args[0] {
+        Object::STRING(str) => Object::INTEGER(Integer {
+            value: str.value.len() as i64,
+        }),
+        Object::INTEGER(_) => Object::ERROR(Error {
+            msg: "argument to `len` not supported, got INTEGER".to_string(),
+        }),
+        other => panic!("expected monkey_len args[0] to be string. Got: {:?}", other),
     }
 }

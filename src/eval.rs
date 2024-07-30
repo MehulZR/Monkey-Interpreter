@@ -7,7 +7,7 @@ use crate::{
     },
     object::{
         enclosed_environment, Boolean, Environment, Error, Function, Integer, Null, Object, Return,
-        StringLiteral,
+        StringLiteral, BUILTINS,
     },
 };
 
@@ -112,22 +112,23 @@ fn eval_call_expression(call_exp: CallExpression, env: &Rc<RefCell<Environment>>
 
     let evaluated_args = eval_expressions(call_exp.args, env);
 
-    let function = match function {
-        Object::FN(obj) => obj,
-        other => panic!("expected fn object. Got {:?}", other),
-    };
-
     if evaluated_args.len() == 1 && is_error(&evaluated_args[0]) {
         return evaluated_args[0].clone();
     }
 
-    let extended_env = extend_fn_env(&function, evaluated_args);
+    match function {
+        Object::FN(obj) => {
+            let extended_env = extend_fn_env(&obj, evaluated_args);
 
-    let evaluated_function = eval_block_statements(function.body, &extended_env);
+            let evaluated_function = eval_block_statements(obj.body, &extended_env);
 
-    match evaluated_function {
-        Object::RETURN(obj) => *obj.value,
-        _ => evaluated_function,
+            match evaluated_function {
+                Object::RETURN(obj) => *obj.value,
+                _ => evaluated_function,
+            }
+        }
+        Object::BUILTINFUNC(obj) => (obj.func)(evaluated_args),
+        other => panic!("expected fn object. Got {:?}", other),
     }
 }
 
@@ -158,12 +159,17 @@ fn eval_expressions(exps: Vec<EXPRESSION>, env: &Rc<RefCell<Environment>>) -> Ve
 }
 
 fn eval_identifier(ident: Identifier, env: &Rc<RefCell<Environment>>) -> Object {
-    match env.borrow().get(&ident.value) {
-        Some(obj) => obj.clone(),
-        None => Object::ERROR(Error {
-            msg: format!("identifier not found: {}", ident.value),
-        }),
-    }
+    if let Some(obj) = env.borrow().get(&ident.value) {
+        return obj.clone();
+    };
+
+    if let Some(obj) = BUILTINS.get(&ident.value.as_str()) {
+        return Object::BUILTINFUNC(obj.clone());
+    };
+
+    Object::ERROR(Error {
+        msg: format!("identifier not found: {}", ident.value),
+    })
 }
 
 fn eval_prefix_expression(operator: String, right: Object) -> Object {
@@ -804,6 +810,60 @@ mod tests {
 
         if string_object.value != "Hello World".to_string() {
             panic!("StringObject has wrong value. Got: {}", string_object.value);
+        }
+    }
+
+    #[test]
+    fn test_builtin_fn_len() {
+        struct Test {
+            input: String,
+            expected: String,
+        }
+
+        let tests = [
+            Test {
+                input: "len(\"\")".to_string(),
+                expected: 0.to_string(),
+            },
+            Test {
+                input: "len(\"four\")".to_string(),
+                expected: 4.to_string(),
+            },
+            Test {
+                input: "len(\"hello world\")".to_string(),
+                expected: 11.to_string(),
+            },
+            Test {
+                input: "len(1)".to_string(),
+                expected: "argument to `len` not supported, got INTEGER".to_string(),
+            },
+            Test {
+                input: "len(\"one\", \"two\")".to_string(),
+                expected: "wrong number of arguments. got=2, want=1".to_string(),
+            },
+        ];
+        for test in tests {
+            let evaluated_val = test_eval(test.input.clone());
+
+            match evaluated_val {
+                Object::INTEGER(num) => {
+                    if num.value != test.expected.parse().unwrap() {
+                        panic!(
+                            "{}'s length is {}. Got:  {}",
+                            test.input, test.expected, num.value
+                        );
+                    }
+                }
+                Object::ERROR(err) => {
+                    if err.msg != test.expected {
+                        panic!(
+                            "Wrong err msg. Expected: {}, got: {}",
+                            test.expected, err.msg
+                        )
+                    }
+                }
+                other => panic!("Expected Integer/Error object. Got: {:?}", other),
+            };
         }
     }
 
