@@ -218,6 +218,14 @@ fn eval_infix_expression(operator: String, left: Object, right: Object) -> Objec
                 msg: format!("unknown operator {:?} {} {:?}", obj1, other, obj2),
             }),
         },
+        (Object::STRING(obj1), Object::STRING(obj2)) => match operator.as_str() {
+            "+" => Object::STRING(StringLiteral {
+                value: format!("{}{}", obj1.value, obj2.value),
+            }),
+            other => Object::ERROR(Error {
+                msg: format!("unknown operator {:?} {} {:?}", obj1, other, obj2),
+            }),
+        },
         (l, r) => Object::ERROR(Error {
             msg: format!("type mismatch {:?} {} {:?}", l, operator, r),
         }),
@@ -747,6 +755,10 @@ mod tests {
                 input: "foobar".to_string(),
                 expected: "identifier not found: foobar".to_string(),
             },
+            Test {
+                input: "\"Hello\" - \"World\"".to_string(),
+                expected: "unknown operator StringLiteral { value: \"Hello\" } - StringLiteral { value: \"World\" }".to_string(),
+            },
         ];
 
         for test in tests {
@@ -768,6 +780,21 @@ mod tests {
     #[test]
     fn test_string_literal() {
         let input = "\"Hello World\"".to_string();
+
+        let evaluated_val = test_eval(input);
+        let string_object = match evaluated_val {
+            Object::STRING(o) => o,
+            other => panic!("Expected String object. Got: {:?}", other),
+        };
+
+        if string_object.value != "Hello World".to_string() {
+            panic!("StringObject has wrong value. Got: {}", string_object.value);
+        }
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let input = "\"Hello\" + \" \" + \"World\"".to_string();
 
         let evaluated_val = test_eval(input);
         let string_object = match evaluated_val {
