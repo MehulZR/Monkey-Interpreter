@@ -217,14 +217,6 @@ lazy_static! {
     };
 }
 
-// pub fn Builtins() -> HashMap<&'static str, Object> {
-//     let mut builtins = HashMap::new();
-
-//     builtins.insert("len", Object::BUILTINFUNC(BuiltInFunc { func: monkey_len }));
-
-//     builtins
-// }
-
 fn monkey_len(args: Vec<Object>) -> Object {
     if args.len() != 1 {
         return Object::ERROR(Error {

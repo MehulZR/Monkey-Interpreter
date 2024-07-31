@@ -179,6 +179,7 @@ impl Parser<'_> {
             TokenType::IF => self.parse_if_expression(),
             TokenType::FUNCTION => self.parse_fn_literal(),
             TokenType::STRING => self.parse_string_literal(),
+            TokenType::LBRACKET => self.parse_array_literal(),
             other => panic!("no prefix parse fn for {:?} defined", other),
         };
 
@@ -301,6 +302,39 @@ impl Parser<'_> {
         })
     }
 
+    fn parse_array_literal(&mut self) -> EXPRESSION {
+        return EXPRESSION::ArrayLiteral(ArrayLitearl {
+            token: self.cur_token.clone(),
+            items: self.parse_expression_list(TokenType::RBRACKET),
+        });
+    }
+
+    fn parse_expression_list(&mut self, end: TokenType) -> Vec<EXPRESSION> {
+        let mut list: Vec<EXPRESSION> = vec![];
+
+        if self.peek_token_is(end) {
+            self.next_token();
+            return list;
+        }
+
+        self.next_token();
+
+        list.push(self.parse_expression(PrecedenceType::LOWEST));
+
+        while self.peek_token_is(TokenType::COMMA) {
+            self.next_token();
+            self.next_token();
+
+            list.push(self.parse_expression(PrecedenceType::LOWEST));
+        }
+
+        if !self.expect_peek(end) {
+            panic!("Expected {:?} while parsing parameter list", end)
+        }
+
+        list
+    }
+
     fn parse_prefix_expression(&mut self) -> EXPRESSION {
         let token = self.cur_token.clone();
         let operator = self.cur_token.literal.clone();
@@ -384,34 +418,8 @@ impl Parser<'_> {
         EXPRESSION::CALL(CallExpression {
             token: self.cur_token.clone(),
             function: Box::new(function),
-            args: self.parse_call_args(),
+            args: self.parse_expression_list(TokenType::RPAREN),
         })
-    }
-
-    fn parse_call_args(&mut self) -> Vec<EXPRESSION> {
-        let mut args = vec![];
-
-        if self.peek_token_is(TokenType::RPAREN) {
-            self.next_token();
-            return args;
-        }
-
-        self.next_token();
-
-        args.push(self.parse_expression(PrecedenceType::LOWEST));
-
-        while self.peek_token_is(TokenType::COMMA) {
-            self.next_token();
-            self.next_token();
-
-            args.push(self.parse_expression(PrecedenceType::LOWEST));
-        }
-
-        if !self.expect_peek(TokenType::RPAREN) {
-            panic!("Expected RPAREN while parsing call_expression_args")
-        }
-
-        args
     }
 
     fn cur_token_is(&self, token: TokenType) -> bool {
@@ -1464,6 +1472,7 @@ mod tests {
             }
         }
     }
+
     #[test]
     fn test_string_literal() {
         let input = "\"Hello World\"".to_string();
@@ -1492,6 +1501,39 @@ mod tests {
         if literal.value != String::from("Hello World") {
             panic!("Literal val not {}. Got: {}", "Hello World", literal.value);
         }
+    }
+
+    #[test]
+    fn test_array_literal() {
+        let input = "[1, 2 * 2, true]".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let arr = match &stmt.expression {
+            EXPRESSION::ArrayLiteral(s) => s,
+            other => panic!("expression not ArrayLiteral. Got: {:?}", other),
+        };
+        if arr.items.len() != 3 {
+            panic!("expected array.items.len to be 3, got: {}", arr.items.len())
+        }
+
+        test_integer_literal(&arr.items[0], 1);
+        test_infix_expression(&arr.items[1], 2.to_string(), "*".to_string(), 2.to_string());
+        test_boolean_literal(&arr.items[2], "true".to_string());
     }
 
     fn test_integer_literal(exp: &EXPRESSION, val: i64) {

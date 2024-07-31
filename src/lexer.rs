@@ -52,103 +52,82 @@ impl Lexer {
     }
 
     pub fn next_token(&mut self) -> Token {
-        let tok: Token;
         self.skip_whitespace();
         let mut skip = false;
-        match self.ch {
-            b';' => {
-                tok = Token {
-                    r#type: TokenType::SEMICOLON,
-                    literal: ';'.to_string(),
-                }
-            }
-            b'(' => {
-                tok = Token {
-                    r#type: TokenType::LPAREN,
-                    literal: '('.to_string(),
-                }
-            }
-            b')' => {
-                tok = Token {
-                    r#type: TokenType::RPAREN,
-                    literal: ')'.to_string(),
-                }
-            }
-            b',' => {
-                tok = Token {
-                    r#type: TokenType::COMMA,
-                    literal: ','.to_string(),
-                }
-            }
-            b'+' => {
-                tok = Token {
-                    r#type: TokenType::PLUS,
-                    literal: '+'.to_string(),
-                }
-            }
-            b'{' => {
-                tok = Token {
-                    r#type: TokenType::LBRACE,
-                    literal: '{'.to_string(),
-                }
-            }
-            b'}' => {
-                tok = Token {
-                    r#type: TokenType::RBRACE,
-                    literal: '}'.to_string(),
-                }
-            }
-            b'-' => {
-                tok = Token {
-                    r#type: TokenType::MINUS,
-                    literal: '-'.to_string(),
-                }
-            }
-            b'/' => {
-                tok = Token {
-                    r#type: TokenType::SLASH,
-                    literal: '/'.to_string(),
-                }
-            }
-            b'*' => {
-                tok = Token {
-                    r#type: TokenType::ASTERISK,
-                    literal: '*'.to_string(),
-                }
-            }
-            b'<' => {
-                tok = Token {
-                    r#type: TokenType::LT,
-                    literal: '<'.to_string(),
-                }
-            }
-            b'>' => {
-                tok = Token {
-                    r#type: TokenType::GT,
-                    literal: '>'.to_string(),
-                }
-            }
-            0 => {
-                tok = Token {
-                    r#type: TokenType::EOF,
-                    literal: "".to_string(),
-                }
-            }
-            b'"' => {
-                tok = Token {
-                    r#type: TokenType::STRING,
-                    literal: self.read_string(),
-                }
-            }
+        let tok = match self.ch {
+            b';' => Token {
+                r#type: TokenType::SEMICOLON,
+                literal: ';'.to_string(),
+            },
+            b'(' => Token {
+                r#type: TokenType::LPAREN,
+                literal: '('.to_string(),
+            },
+            b')' => Token {
+                r#type: TokenType::RPAREN,
+                literal: ')'.to_string(),
+            },
+            b',' => Token {
+                r#type: TokenType::COMMA,
+                literal: ','.to_string(),
+            },
+            b'+' => Token {
+                r#type: TokenType::PLUS,
+                literal: '+'.to_string(),
+            },
+            b'{' => Token {
+                r#type: TokenType::LBRACE,
+                literal: '{'.to_string(),
+            },
+            b'}' => Token {
+                r#type: TokenType::RBRACE,
+                literal: '}'.to_string(),
+            },
+            b'[' => Token {
+                r#type: TokenType::LBRACKET,
+                literal: '['.to_string(),
+            },
+            b']' => Token {
+                r#type: TokenType::RBRACKET,
+                literal: ']'.to_string(),
+            },
+            b'-' => Token {
+                r#type: TokenType::MINUS,
+                literal: '-'.to_string(),
+            },
+            b'/' => Token {
+                r#type: TokenType::SLASH,
+                literal: '/'.to_string(),
+            },
+            b'*' => Token {
+                r#type: TokenType::ASTERISK,
+                literal: '*'.to_string(),
+            },
+            b'<' => Token {
+                r#type: TokenType::LT,
+                literal: '<'.to_string(),
+            },
+            b'>' => Token {
+                r#type: TokenType::GT,
+                literal: '>'.to_string(),
+            },
+            0 => Token {
+                r#type: TokenType::EOF,
+                literal: "".to_string(),
+            },
+            b'"' => Token {
+                r#type: TokenType::STRING,
+                literal: self.read_string(),
+            },
             b'!' => {
                 if self.peek_char() == b'=' {
                     self.read_char();
-                    tok = Token {
+                    Token {
                         r#type: TokenType::NOTEQ,
                         literal: "!=".to_string(),
                     }
                 } else {
-                    tok = Token {
+                    Token {
                         r#type: TokenType::BANG,
                         literal: '!'.to_string(),
                     }
@@ -157,12 +136,12 @@ impl Lexer {
             b'=' => {
                 if self.peek_char() == b'=' {
                     self.read_char();
-                    tok = Token {
+                    Token {
                         r#type: TokenType::EQ,
                         literal: "==".to_string(),
                     }
                 } else {
-                    tok = Token {
+                    Token {
                         r#type: TokenType::ASSIGN,
                         literal: '='.to_string(),
                     }
@@ -171,25 +150,23 @@ impl Lexer {
             ch if b'_' == ch || ch.is_ascii_alphabetic() => {
                 skip = true;
                 let literal = self.read_identifier();
-                tok = Token {
+                Token {
                     r#type: Token::lookup_ident(&literal),
                     literal,
                 }
             }
             ch if ch.is_ascii_digit() => {
                 skip = true;
-                tok = Token {
+                Token {
                     r#type: TokenType::INT,
                     literal: self.read_number(),
                 }
             }
-            _ => {
-                tok = Token {
-                    r#type: TokenType::ILLEGAL,
-                    literal: self.ch.to_string(),
-                }
-            }
-        }
+            _ => Token {
+                r#type: TokenType::ILLEGAL,
+                literal: self.ch.to_string(),
+            },
+        };
         if !skip {
             self.read_char();
         }
@@ -242,7 +219,8 @@ mod tests {
                      10 == 10;
                      10 != 9;
                      \"foobar\"
-                     \"foo bar\"";
+                     \"foo bar\"
+                     [1, 2];";
 
         let tests: Vec<TestTokenType> = vec![
             TestTokenType {
@@ -544,6 +522,30 @@ mod tests {
             TestTokenType {
                 expected_token_type: TokenType::STRING,
                 expected_literal: "foo bar".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::LBRACKET,
+                expected_literal: "[".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::INT,
+                expected_literal: "1".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::COMMA,
+                expected_literal: ",".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::INT,
+                expected_literal: "2".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::RBRACKET,
+                expected_literal: "]".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::SEMICOLON,
+                expected_literal: ";".to_string(),
             },
             TestTokenType {
                 expected_token_type: TokenType::EOF,

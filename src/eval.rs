@@ -100,6 +100,7 @@ fn eval_expression(exp: EXPRESSION, env: &Rc<RefCell<Environment>>) -> Object {
             eval_infix_expression(e.operator, left, right)
         }
         EXPRESSION::StringLiteral(e) => Object::STRING(StringLiteral { value: e.value }),
+        other => panic!("eval fn not found for expression: {:?}", other),
     }
 }
 
@@ -262,12 +263,10 @@ fn eval_if_expression(exp: IfExpression, env: &Rc<RefCell<Environment>>) -> Obje
     }
 
     if is_truthy(condition) {
-        // return eval_statements(exp.consequence.statements);
         return eval_block_statements(exp.consequence, env);
     }
 
     match exp.alternative {
-        // Some(alt) => eval_statements(alt.statements),
         Some(alt) => eval_block_statements(alt, env),
         None => Object::NULL(Null {}),
     }

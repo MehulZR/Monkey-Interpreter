@@ -18,6 +18,8 @@ pub enum TokenType {
     RPAREN,
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
     MINUS,
     BANG,
     ASTERISK,
@@ -48,7 +50,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Token {
     pub r#type: TokenType,
     pub literal: String,
