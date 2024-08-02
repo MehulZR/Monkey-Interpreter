@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Deref, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
 use lazy_static::lazy_static;
 
@@ -13,6 +13,7 @@ pub enum ObjectType {
     FUNCTION,
     STRING,
     BUILTINFUNC,
+    ARRAY,
 }
 
 pub trait ObjectTrait {
@@ -30,6 +31,37 @@ pub enum Object {
     FN(Function),
     STRING(StringLiteral),
     BUILTINFUNC(BuiltInFunc),
+    ARRAY(Array),
+}
+
+impl ObjectTrait for Object {
+    fn r#type(&self) -> ObjectType {
+        match self {
+            Self::INTEGER(o) => o.r#type(),
+            Self::BOOLEAN(o) => o.r#type(),
+            Self::NULL(o) => o.r#type(),
+            Self::RETURN(o) => o.r#type(),
+            Self::ERROR(o) => o.r#type(),
+            Self::FN(o) => o.r#type(),
+            Self::STRING(o) => o.r#type(),
+            Self::BUILTINFUNC(o) => o.r#type(),
+            Self::ARRAY(o) => o.r#type(),
+        }
+    }
+
+    fn inspect(&self) -> String {
+        match self {
+            Self::INTEGER(o) => o.inspect(),
+            Self::BOOLEAN(o) => o.inspect(),
+            Self::NULL(o) => o.inspect(),
+            Self::RETURN(o) => o.inspect(),
+            Self::ERROR(o) => o.inspect(),
+            Self::FN(o) => o.inspect(),
+            Self::STRING(o) => o.inspect(),
+            Self::BUILTINFUNC(o) => o.inspect(),
+            Self::ARRAY(o) => o.inspect(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +108,35 @@ impl ObjectTrait for StringLiteral {
         self.value.clone()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct Array {
+    pub elements: Vec<Object>,
+}
+
+impl ObjectTrait for Array {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::ARRAY
+    }
+
+    fn inspect(&self) -> String {
+        let mut str = String::new();
+
+        let items = self
+            .elements
+            .iter()
+            .map(|param| param.inspect())
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        str.push_str("[");
+        str.push_str(&items);
+        str.push_str("]");
+
+        str
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Null {}
 
@@ -100,16 +161,7 @@ impl ObjectTrait for Return {
     }
 
     fn inspect(&self) -> String {
-        match self.value.deref() {
-            Object::INTEGER(o) => o.inspect(),
-            Object::BOOLEAN(o) => o.inspect(),
-            Object::NULL(o) => o.inspect(),
-            Object::RETURN(o) => o.inspect(),
-            Object::ERROR(o) => o.inspect(),
-            Object::FN(o) => o.inspect(),
-            Object::STRING(o) => o.inspect(),
-            Object::BUILTINFUNC(o) => o.inspect(),
-        }
+        self.value.inspect()
     }
 }
 

@@ -6,8 +6,8 @@ use crate::{
         LetStatement, Program, ReturnStatement, Statement, EXPRESSION,
     },
     object::{
-        enclosed_environment, Boolean, Environment, Error, Function, Integer, Null, Object, Return,
-        StringLiteral, BUILTINS,
+        enclosed_environment, Array, Boolean, Environment, Error, Function, Integer, Null, Object,
+        Return, StringLiteral, BUILTINS,
     },
 };
 
@@ -100,6 +100,15 @@ fn eval_expression(exp: EXPRESSION, env: &Rc<RefCell<Environment>>) -> Object {
             eval_infix_expression(e.operator, left, right)
         }
         EXPRESSION::StringLiteral(e) => Object::STRING(StringLiteral { value: e.value }),
+        EXPRESSION::ArrayLiteral(e) => {
+            let elements = eval_expressions(e.items, env);
+
+            if elements.len() == 1 && is_error(&elements[0]) {
+                return elements[0].clone();
+            }
+
+            Object::ARRAY(Array { elements })
+        }
         other => panic!("eval fn not found for expression: {:?}", other),
     }
 }
@@ -864,6 +873,26 @@ mod tests {
                 other => panic!("Expected Integer/Error object. Got: {:?}", other),
             };
         }
+    }
+
+    #[test]
+    fn test_array_literals() {
+        let input = "[1, 2 * 2, 3 + 3]".to_string();
+
+        let evaluated_val = test_eval(input);
+
+        let arr = match evaluated_val {
+            Object::ARRAY(o) => o,
+            other => panic!("Object is not of type Array. Got:  {:?}", other),
+        };
+
+        if arr.elements.len() != 3 {
+            panic!("Array has wrong no. of elements");
+        }
+
+        test_integer_object(arr.elements[0].clone(), 1);
+        test_integer_object(arr.elements[1].clone(), 4);
+        test_integer_object(arr.elements[2].clone(), 6);
     }
 
     fn test_null_object(obj: Object) {
