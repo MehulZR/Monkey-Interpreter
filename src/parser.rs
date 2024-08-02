@@ -15,6 +15,7 @@ enum PrecedenceType {
     PRODUCT,
     PREFIX,
     CALL,
+    INDEX,
 }
 
 lazy_static! {
@@ -29,6 +30,7 @@ lazy_static! {
         keywords.insert(TokenType::SLASH, PrecedenceType::PRODUCT);
         keywords.insert(TokenType::ASTERISK, PrecedenceType::PRODUCT);
         keywords.insert(TokenType::LPAREN, PrecedenceType::CALL);
+        keywords.insert(TokenType::LBRACKET, PrecedenceType::INDEX);
         keywords
     };
 }
@@ -200,11 +202,33 @@ impl Parser<'_> {
                     self.next_token();
                     self.parse_call_expression(left)
                 }
+                TokenType::LBRACKET => {
+                    self.next_token();
+                    self.parse_index_expression(left)
+                }
                 _ => left,
             }
         }
 
         left
+    }
+
+    fn parse_index_expression(&mut self, left: EXPRESSION) -> EXPRESSION {
+        let cur_token = self.cur_token.clone();
+
+        self.next_token();
+
+        let index = self.parse_expression(PrecedenceType::LOWEST);
+
+        if !self.expect_peek(TokenType::RBRACKET) {
+            panic!("Expected RBracket while parsing array index expression");
+        }
+
+        EXPRESSION::IndexExpression(IndexExpression {
+            token: cur_token,
+            left: Box::new(left),
+            index: Box::new(index),
+        })
     }
 
     fn parse_if_expression(&mut self) -> EXPRESSION {
@@ -1006,6 +1030,14 @@ mod tests {
                 input: "add(a + b + c * d / f + g)".to_string(),
                 expected: "add((((a + b) + ((c * d) / f)) + g))".to_string(),
             },
+            Test {
+                input: "a * [1, 2, 3, 4][b * c] * d".to_string(),
+                expected: "((a * ([1, 2, 3, 4][(b * c)])) * d)".to_string(),
+            },
+            Test {
+                input: "add(a * b[2], b[1], 2 * [1, 2][1])".to_string(),
+                expected: "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))".to_string(),
+            },
         ];
 
         for test in tests {
@@ -1534,6 +1566,40 @@ mod tests {
         test_integer_literal(&arr.items[0], 1);
         test_infix_expression(&arr.items[1], 2.to_string(), "*".to_string(), 2.to_string());
         test_boolean_literal(&arr.items[2], "true".to_string());
+    }
+
+    #[test]
+    fn test_parsing_index_expression() {
+        let input = "myArray[1 + 1]".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let exp = match &stmt.expression {
+            EXPRESSION::IndexExpression(s) => s,
+            other => panic!("expression not ArrayLiteral. Got: {:?}", other),
+        };
+
+        test_identifier(&exp.left, "myArray".to_string());
+        test_infix_expression(
+            &exp.index,
+            "1".to_string(),
+            "+".to_string(),
+            "1".to_string(),
+        );
     }
 
     fn test_integer_literal(exp: &EXPRESSION, val: i64) {

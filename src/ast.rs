@@ -121,6 +121,7 @@ pub enum EXPRESSION {
     CALL(CallExpression),
     StringLiteral(StringLiteral),
     ArrayLiteral(ArrayLitearl),
+    IndexExpression(IndexExpression),
 }
 impl Node for EXPRESSION {
     fn token_literal(&self) -> String {
@@ -135,6 +136,7 @@ impl Node for EXPRESSION {
             EXPRESSION::CALL(obj) => obj.token_literal(),
             EXPRESSION::StringLiteral(obj) => obj.token_literal(),
             EXPRESSION::ArrayLiteral(obj) => obj.token_literal(),
+            EXPRESSION::IndexExpression(obj) => obj.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -149,6 +151,7 @@ impl Node for EXPRESSION {
             EXPRESSION::CALL(obj) => obj.string(),
             EXPRESSION::StringLiteral(obj) => obj.string(),
             EXPRESSION::ArrayLiteral(obj) => obj.string(),
+            EXPRESSION::IndexExpression(obj) => obj.string(),
         }
     }
 }
@@ -384,6 +387,31 @@ impl Node for ArrayLitearl {
         str.push_str("[");
         str.push_str(&items);
         str.push_str("]");
+
+        str
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct IndexExpression {
+    pub token: Token,
+    pub left: Box<EXPRESSION>,
+    pub index: Box<EXPRESSION>,
+}
+
+impl Node for IndexExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        let mut str = String::new();
+
+        str.push_str("(");
+        str.push_str(&self.left.string());
+        str.push_str("[");
+        str.push_str(&self.index.string());
+        str.push_str("])");
 
         str
     }
