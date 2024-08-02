@@ -109,7 +109,41 @@ fn eval_expression(exp: EXPRESSION, env: &Rc<RefCell<Environment>>) -> Object {
 
             Object::ARRAY(Array { elements })
         }
+        EXPRESSION::IndexExpression(e) => {
+            let left = eval_expression(*e.left, env);
+            if is_error(&left) {
+                return left;
+            }
+
+            let index = eval_expression(*e.index, env);
+            if is_error(&index) {
+                return index;
+            }
+
+            eval_index_expression(left, index)
+        }
         other => panic!("eval fn not found for expression: {:?}", other),
+    }
+}
+
+fn eval_index_expression(left: Object, index: Object) -> Object {
+    match (left, index) {
+        (Object::ARRAY(arr), Object::INTEGER(i)) => {
+            let max = arr.elements.len();
+            let i = match usize::try_from(i.value) {
+                Ok(i) => i,
+                Err(_) => {
+                    return Object::NULL(Null {});
+                }
+            };
+
+            if i >= max {
+                return Object::NULL(Null {});
+            }
+
+            arr.elements[i].clone()
+        }
+        (other, _) => panic!("Index operator not supported on {:?}", other),
     }
 }
 
@@ -893,6 +927,66 @@ mod tests {
         test_integer_object(arr.elements[0].clone(), 1);
         test_integer_object(arr.elements[1].clone(), 4);
         test_integer_object(arr.elements[2].clone(), 6);
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        struct Test {
+            input: String,
+            expected: Option<i64>,
+        }
+
+        let tests = [
+            Test {
+                input: "[1, 2, 3][0]".to_string(),
+                expected: Some(1),
+            },
+            Test {
+                input: "[1, 2, 3][1]".to_string(),
+                expected: Some(2),
+            },
+            Test {
+                input: "[1, 2, 3][2]".to_string(),
+                expected: Some(3),
+            },
+            Test {
+                input: "let i = 0; [1][i];".to_string(),
+                expected: Some(1),
+            },
+            Test {
+                input: "[1, 2, 3][1 + 1];".to_string(),
+                expected: Some(3),
+            },
+            Test {
+                input: "let myArray = [1, 2, 3]; myArray[2];".to_string(),
+                expected: Some(3),
+            },
+            Test {
+                input: "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];".to_string(),
+                expected: Some(6),
+            },
+            Test {
+                input: "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]".to_string(),
+                expected: Some(2),
+            },
+            Test {
+                input: "[1, 2, 3][3]".to_string(),
+                expected: None,
+            },
+            Test {
+                input: "[1, 2, 3][-1]".to_string(),
+                expected: None,
+            },
+        ];
+
+        for test in tests {
+            let evaluated_val = test_eval(test.input);
+
+            match test.expected {
+                Some(val) => test_integer_object(evaluated_val, val),
+                None => test_null_object(evaluated_val),
+            }
+        }
     }
 
     fn test_null_object(obj: Object) {
