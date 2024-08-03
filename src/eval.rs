@@ -354,7 +354,7 @@ mod tests {
 
     use crate::ast::Node;
     use crate::lexer::Lexer;
-    use crate::object::Object;
+    use crate::object::{Object, ObjectTrait};
     use crate::parser::Parser;
 
     #[test]
@@ -883,6 +883,66 @@ mod tests {
                 input: "len(\"one\", \"two\")".to_string(),
                 expected: "wrong number of arguments. got=2, want=1".to_string(),
             },
+            Test {
+                input: "first()".to_string(),
+                expected: "wrong number of arguments. got=0, want=1".to_string(),
+            },
+            Test {
+                input: "first([], [])".to_string(),
+                expected: "wrong number of arguments. got=2, want=1".to_string(),
+            },
+            Test {
+                input: "first([])".to_string(),
+                expected: "null".to_string(),
+            },
+            Test {
+                input: "first([1, 2, 3])".to_string(),
+                expected: "1".to_string(),
+            },
+            Test {
+                input: "last()".to_string(),
+                expected: "wrong number of arguments. got=0, want=1".to_string(),
+            },
+            Test {
+                input: "last([], [])".to_string(),
+                expected: "wrong number of arguments. got=2, want=1".to_string(),
+            },
+            Test {
+                input: "last([])".to_string(),
+                expected: "null".to_string(),
+            },
+            Test {
+                input: "last([1, 2, 3])".to_string(),
+                expected: "3".to_string(),
+            },
+            Test {
+                input: "rest()".to_string(),
+                expected: "wrong number of arguments. got=0, want=1".to_string(),
+            },
+            Test {
+                input: "rest([], [])".to_string(),
+                expected: "wrong number of arguments. got=2, want=1".to_string(),
+            },
+            Test {
+                input: "rest([])".to_string(),
+                expected: "null".to_string(),
+            },
+            Test {
+                input: "rest([1, 2, 3])".to_string(),
+                expected: "[2, 3]".to_string(),
+            },
+            Test {
+                input: "push()".to_string(),
+                expected: "wrong number of arguments. got=0, want=2".to_string(),
+            },
+            Test {
+                input: "push([])".to_string(),
+                expected: "wrong number of arguments. got=1, want=2".to_string(),
+            },
+            Test {
+                input: "push([], 1)".to_string(),
+                expected: "[1]".to_string(),
+            },
         ];
         for test in tests {
             let evaluated_val = test_eval(test.input.clone());
@@ -902,6 +962,16 @@ mod tests {
                             "Wrong err msg. Expected: {}, got: {}",
                             test.expected, err.msg
                         )
+                    }
+                }
+                Object::NULL(_) => {
+                    if test.expected != "null".to_string() {
+                        panic!("Expected: {}, got: Null", test.expected)
+                    }
+                }
+                Object::ARRAY(arr) => {
+                    if arr.inspect() != test.expected {
+                        panic!("Expected: {}, got: {}", test.expected, arr.inspect())
                     }
                 }
                 other => panic!("Expected Integer/Error object. Got: {:?}", other),

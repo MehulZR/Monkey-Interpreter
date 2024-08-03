@@ -265,6 +265,10 @@ lazy_static! {
     pub static ref BUILTINS: HashMap<&'static str, BuiltInFunc> = {
         let mut builtins = HashMap::new();
         builtins.insert("len", BuiltInFunc { func: monkey_len });
+        builtins.insert("first", BuiltInFunc { func: monkey_first });
+        builtins.insert("last", BuiltInFunc { func: monkey_last });
+        builtins.insert("rest", BuiltInFunc { func: monkey_rest });
+        builtins.insert("push", BuiltInFunc { func: monkey_push });
         builtins
     };
 }
@@ -283,6 +287,85 @@ fn monkey_len(args: Vec<Object>) -> Object {
         Object::INTEGER(_) => Object::ERROR(Error {
             msg: "argument to `len` not supported, got INTEGER".to_string(),
         }),
-        other => panic!("expected monkey_len args[0] to be string. Got: {:?}", other),
+        Object::ARRAY(arr) => Object::INTEGER(Integer {
+            value: arr.elements.len() as i64,
+        }),
+        other => panic!(
+            "expected `monkey_len` args[0] to be string. Got: {:?}",
+            other
+        ),
+    }
+}
+
+fn monkey_first(args: Vec<Object>) -> Object {
+    if args.len() != 1 {
+        return Object::ERROR(Error {
+            msg: format!("wrong number of arguments. got={}, want={}", args.len(), 1),
+        });
+    }
+
+    match &args[0] {
+        Object::ARRAY(arr) => {
+            if arr.elements.len() > 0 {
+                return arr.elements[0].clone();
+            }
+            Object::NULL(Null {})
+        }
+        other => panic!("expected `first` args[0] to be arr. Got: {:?}", other),
+    }
+}
+
+fn monkey_last(args: Vec<Object>) -> Object {
+    if args.len() != 1 {
+        return Object::ERROR(Error {
+            msg: format!("wrong number of arguments. got={}, want={}", args.len(), 1),
+        });
+    }
+
+    match &args[0] {
+        Object::ARRAY(arr) => {
+            if arr.elements.len() > 0 {
+                return arr.elements[arr.elements.len() - 1].clone();
+            }
+            Object::NULL(Null {})
+        }
+        other => panic!("expected `first` args[0] to be arr. Got: {:?}", other),
+    }
+}
+
+fn monkey_rest(args: Vec<Object>) -> Object {
+    if args.len() != 1 {
+        return Object::ERROR(Error {
+            msg: format!("wrong number of arguments. got={}, want={}", args.len(), 1),
+        });
+    }
+
+    match &args[0] {
+        Object::ARRAY(arr) => {
+            if arr.elements.len() > 0 {
+                return Object::ARRAY(Array {
+                    elements: arr.elements[1..=arr.elements.len() - 1].to_vec(),
+                });
+            }
+            Object::NULL(Null {})
+        }
+        other => panic!("expected `first` args[0] to be arr. Got: {:?}", other),
+    }
+}
+
+fn monkey_push(args: Vec<Object>) -> Object {
+    if args.len() != 2 {
+        return Object::ERROR(Error {
+            msg: format!("wrong number of arguments. got={}, want={}", args.len(), 2),
+        });
+    }
+
+    match &args[0] {
+        Object::ARRAY(arr) => {
+            let mut new_arr = arr.elements.clone();
+            new_arr.push(args[1].clone());
+            Object::ARRAY(Array { elements: new_arr })
+        }
+        other => panic!("expected `first` args[0] to be arr. Got: {:?}", other),
     }
 }
