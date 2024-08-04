@@ -34,6 +34,7 @@ pub enum TokenType {
     EQ,
     NOTEQ,
     STRING,
+    COLON,
 }
 
 lazy_static! {

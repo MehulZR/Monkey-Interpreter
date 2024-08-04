@@ -111,6 +111,10 @@ impl Lexer {
                 r#type: TokenType::GT,
                 literal: '>'.to_string(),
             },
+            b':' => Token {
+                r#type: TokenType::COLON,
+                literal: ":".to_string(),
+            },
             0 => Token {
                 r#type: TokenType::EOF,
                 literal: "".to_string(),
@@ -220,7 +224,8 @@ mod tests {
                      10 != 9;
                      \"foobar\"
                      \"foo bar\"
-                     [1, 2];";
+                     [1, 2];
+                     {\"foo\": \"bar\"}";
 
         let tests: Vec<TestTokenType> = vec![
             TestTokenType {
@@ -546,6 +551,26 @@ mod tests {
             TestTokenType {
                 expected_token_type: TokenType::SEMICOLON,
                 expected_literal: ";".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::LBRACE,
+                expected_literal: "{".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::STRING,
+                expected_literal: "foo".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::COLON,
+                expected_literal: ":".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::STRING,
+                expected_literal: "bar".to_string(),
+            },
+            TestTokenType {
+                expected_token_type: TokenType::RBRACE,
+                expected_literal: "}".to_string(),
             },
             TestTokenType {
                 expected_token_type: TokenType::EOF,
