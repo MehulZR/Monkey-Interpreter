@@ -182,6 +182,7 @@ impl Parser<'_> {
             TokenType::FUNCTION => self.parse_fn_literal(),
             TokenType::STRING => self.parse_string_literal(),
             TokenType::LBRACKET => self.parse_array_literal(),
+            TokenType::LBRACE => self.parse_hash_literal(),
             other => panic!("no prefix parse fn for {:?} defined", other),
         };
 
@@ -211,6 +212,40 @@ impl Parser<'_> {
         }
 
         left
+    }
+
+    fn parse_hash_literal(&mut self) -> EXPRESSION {
+        let cur_token = self.cur_token.clone();
+        let mut pairs = vec![];
+
+        while !self.peek_token_is(TokenType::RBRACE) {
+            self.next_token();
+
+            let key = self.parse_expression(PrecedenceType::LOWEST);
+
+            if !self.expect_peek(TokenType::COLON) {
+                panic!("Expected colon here. Got: {:?}", self.cur_token);
+            };
+
+            self.next_token();
+
+            let val = self.parse_expression(PrecedenceType::LOWEST);
+
+            pairs.push((key, val));
+
+            if !self.peek_token_is(TokenType::RBRACE) && !self.expect_peek(TokenType::COMMA) {
+                panic!("Expected COMMA or RBRACE here while parsing hash literal");
+            }
+        }
+
+        if !self.expect_peek(TokenType::RBRACE) {
+            panic!("Expected RBRACE here while parsing hash literal");
+        }
+
+        EXPRESSION::HashLiteral(HashLiteral {
+            token: cur_token,
+            pairs,
+        })
     }
 
     fn parse_index_expression(&mut self, left: EXPRESSION) -> EXPRESSION {
@@ -1600,6 +1635,238 @@ mod tests {
             "+".to_string(),
             "1".to_string(),
         );
+    }
+
+    #[test]
+    fn test_parsing_hash_literal_string_keys() {
+        let input = "{\"one\": 1, \"two\": 2}".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let hash = match &stmt.expression {
+            EXPRESSION::HashLiteral(s) => s,
+            other => panic!("expression not HashLiteral. Got: {:?}", other),
+        };
+
+        if hash.pairs.len() != 2 {
+            panic!("Hash.pairs has wrong length. Got:{}", hash.pairs.len())
+        }
+
+        let mut expected = HashMap::new();
+        expected.insert("one", 1);
+        expected.insert("two", 2);
+
+        for (k, v) in &hash.pairs {
+            let key = match k {
+                EXPRESSION::StringLiteral(str) => str.value.clone(),
+                other => panic!("Expected key to be of type string. Got: {:?}", other),
+            };
+
+            let expected_val = expected.get(key.as_str()).unwrap();
+
+            test_integer_literal(&v, *expected_val as i64);
+        }
+    }
+    #[test]
+    fn test_parsing_hash_literal_integer_keys() {
+        let input = "{1: 1, 2: 2}".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let hash = match &stmt.expression {
+            EXPRESSION::HashLiteral(s) => s,
+            other => panic!("expression not HashLiteral. Got: {:?}", other),
+        };
+
+        if hash.pairs.len() != 2 {
+            panic!("Hash.pairs has wrong length. Got:{}", hash.pairs.len())
+        }
+
+        let mut expected = HashMap::new();
+        expected.insert("1", 1);
+        expected.insert("2", 2);
+
+        for (k, v) in &hash.pairs {
+            let key = match k {
+                EXPRESSION::INTEGER(int) => int.value.to_string(),
+                other => panic!("Expected key to be of type integer. Got: {:?}", other),
+            };
+
+            let expected_val = expected.get(key.as_str()).unwrap();
+
+            test_integer_literal(&v, *expected_val as i64);
+        }
+    }
+    #[test]
+    fn test_parsing_hash_literal_boolean_keys() {
+        let input = "{true: 1, false: 0}".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let hash = match &stmt.expression {
+            EXPRESSION::HashLiteral(s) => s,
+            other => panic!("expression not HashLiteral. Got: {:?}", other),
+        };
+
+        if hash.pairs.len() != 2 {
+            panic!("Hash.pairs has wrong length. Got:{}", hash.pairs.len())
+        }
+
+        let mut expected = HashMap::new();
+        expected.insert("true", 1);
+        expected.insert("false", 0);
+
+        for (k, v) in &hash.pairs {
+            let key = match k {
+                EXPRESSION::BOOLEAN(bool) => bool.value.to_string(),
+                other => panic!("Expected key to be of type boolean. Got: {:?}", other),
+            };
+
+            let expected_val = expected.get(key.as_str()).unwrap();
+
+            test_integer_literal(&v, *expected_val as i64);
+        }
+    }
+    #[test]
+    fn test_parsing_hash_literal_with_exp() {
+        let input = "{\"one\": 0 + 1, \"two\": 4 / 2}".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let hash = match &stmt.expression {
+            EXPRESSION::HashLiteral(s) => s,
+            other => panic!("expression not HashLiteral. Got: {:?}", other),
+        };
+
+        if hash.pairs.len() != 2 {
+            panic!("Hash.pairs has wrong length. Got:{}", hash.pairs.len())
+        }
+
+        struct Expected {
+            left: String,
+            operator: String,
+            right: String,
+        }
+
+        let mut expected = HashMap::new();
+        expected.insert(
+            "one",
+            Expected {
+                left: 0.to_string(),
+                operator: "+".to_string(),
+                right: 1.to_string(),
+            },
+        );
+        expected.insert(
+            "two",
+            Expected {
+                left: 4.to_string(),
+                operator: "/".to_string(),
+                right: 2.to_string(),
+            },
+        );
+
+        for (k, v) in &hash.pairs {
+            let key = match k {
+                EXPRESSION::StringLiteral(str) => str.value.clone(),
+                other => panic!("Expected key to be of type string. Got: {:?}", other),
+            };
+
+            let expected = expected.get(key.as_str()).unwrap();
+
+            test_infix_expression(
+                &v,
+                expected.left.clone(),
+                expected.operator.clone(),
+                expected.right.clone(),
+            );
+        }
+    }
+
+    #[test]
+    fn test_parsing_empty_hash_literal() {
+        let input = "{}".to_string();
+
+        let mut l = Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let program = match program {
+            Some(program) => program,
+            None => panic!("Program not found"),
+        };
+
+        let stmt = match &program.statements[0] {
+            Statement::EXPRESSIONSTATEMENT(s) => s,
+            other => panic!("Statement is not of type expression. Got: {:?}", other),
+        };
+
+        let hash = match &stmt.expression {
+            EXPRESSION::HashLiteral(s) => s,
+            other => panic!("expression not HashLiteral. Got: {:?}", other),
+        };
+
+        if hash.pairs.len() != 0 {
+            panic!("Hash.pairs has wrong length. Got:{}", hash.pairs.len())
+        }
     }
 
     fn test_integer_literal(exp: &EXPRESSION, val: i64) {
