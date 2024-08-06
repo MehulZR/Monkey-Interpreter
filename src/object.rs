@@ -1,9 +1,16 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::Debug,
+    hash::{DefaultHasher, Hash, Hasher},
+    rc::Rc,
+};
 
 use lazy_static::lazy_static;
 
 use crate::ast::{BlockStatement, Identifier, Node};
 
+#[derive(PartialEq, Debug, Clone, Hash, Eq)]
 pub enum ObjectType {
     INTEGER,
     BOOLEAN,
@@ -14,6 +21,7 @@ pub enum ObjectType {
     STRING,
     BUILTINFUNC,
     ARRAY,
+    HASH,
 }
 
 pub trait ObjectTrait {
@@ -32,6 +40,7 @@ pub enum Object {
     STRING(StringLiteral),
     BUILTINFUNC(BuiltInFunc),
     ARRAY(Array),
+    HashLitearl(HashObject),
 }
 
 impl ObjectTrait for Object {
@@ -46,6 +55,7 @@ impl ObjectTrait for Object {
             Self::STRING(o) => o.r#type(),
             Self::BUILTINFUNC(o) => o.r#type(),
             Self::ARRAY(o) => o.r#type(),
+            Self::HashLitearl(o) => o.r#type(),
         }
     }
 
@@ -60,6 +70,7 @@ impl ObjectTrait for Object {
             Self::STRING(o) => o.inspect(),
             Self::BUILTINFUNC(o) => o.inspect(),
             Self::ARRAY(o) => o.inspect(),
+            Self::HashLitearl(o) => o.inspect(),
         }
     }
 }
@@ -79,6 +90,15 @@ impl ObjectTrait for Integer {
     }
 }
 
+impl Hashable for Integer {
+    fn hash_key(&self) -> HashKey {
+        HashKey {
+            r#type: self.r#type(),
+            value: self.value as u64,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Boolean {
     pub value: bool,
@@ -94,6 +114,15 @@ impl ObjectTrait for Boolean {
     }
 }
 
+impl Hashable for Boolean {
+    fn hash_key(&self) -> HashKey {
+        HashKey {
+            r#type: self.r#type(),
+            value: if self.value { 1 } else { 0 },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StringLiteral {
     pub value: String,
@@ -106,6 +135,23 @@ impl ObjectTrait for StringLiteral {
 
     fn inspect(&self) -> String {
         self.value.clone()
+    }
+}
+
+impl Hash for StringLiteral {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+    }
+}
+
+impl Hashable for StringLiteral {
+    fn hash_key(&self) -> HashKey {
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        HashKey {
+            r#type: self.r#type(),
+            value: s.finish(),
+        }
     }
 }
 
@@ -367,5 +413,120 @@ fn monkey_push(args: Vec<Object>) -> Object {
             Object::ARRAY(Array { elements: new_arr })
         }
         other => panic!("expected `first` args[0] to be arr. Got: {:?}", other),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HashObject {
+    pub pairs: HashMap<HashKey, HashPair>,
+}
+
+impl ObjectTrait for HashObject {
+    fn r#type(&self) -> ObjectType {
+        ObjectType::HASH
+    }
+
+    fn inspect(&self) -> String {
+        let mut str = String::new();
+        let pairs = self
+            .pairs
+            .iter()
+            .map(|(_, v)| format!("{}: {}", v.key.inspect(), v.value.inspect()))
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        str.push_str("{");
+        str.push_str(&pairs);
+        str.push_str("}");
+
+        str
+    }
+}
+
+pub trait Hashable {
+    fn hash_key(&self) -> HashKey;
+}
+
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
+pub struct HashKey {
+    r#type: ObjectType,
+    value: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct HashPair {
+    pub key: Object,
+    pub value: Object,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Boolean, Hashable, Integer, StringLiteral};
+
+    #[test]
+    fn test_string_hash_key() {
+        let hello1 = StringLiteral {
+            value: "Hello world".to_string(),
+        };
+
+        let hello2 = StringLiteral {
+            value: "Hello world".to_string(),
+        };
+
+        let diff1 = StringLiteral {
+            value: "My name is johnny".to_string(),
+        };
+
+        let diff2 = StringLiteral {
+            value: "My name is johnny".to_string(),
+        };
+
+        if hello1.hash_key() != hello2.hash_key() {
+            panic!("strings with same content have different hash keys");
+        }
+        if diff1.hash_key() != diff2.hash_key() {
+            panic!("strings with same content have different hash keys");
+        }
+        if hello1.hash_key() == diff1.hash_key() {
+            panic!("strings with diff content have same hash keys");
+        }
+    }
+
+    #[test]
+    fn test_integer_hash_key() {
+        let hello1 = Integer { value: 1 };
+        let hello2 = Integer { value: 1 };
+
+        let diff1 = Integer { value: 2 };
+        let diff2 = Integer { value: 2 };
+
+        if hello1.hash_key() != hello2.hash_key() {
+            panic!("integer with same content have different hash keys");
+        }
+        if diff1.hash_key() != diff2.hash_key() {
+            panic!("integer with same content have different hash keys");
+        }
+        if hello1.hash_key() == diff1.hash_key() {
+            panic!("integer  with diff content have same hash keys");
+        }
+    }
+
+    #[test]
+    fn test_boolean_hash_key() {
+        let hello1 = Boolean { value: true };
+        let hello2 = Boolean { value: true };
+
+        let diff1 = Boolean { value: false };
+        let diff2 = Boolean { value: false };
+
+        if hello1.hash_key() != hello2.hash_key() {
+            panic!("boolean with same content have different hash keys");
+        }
+        if diff1.hash_key() != diff2.hash_key() {
+            panic!("boolean with same content have different hash keys");
+        }
+        if hello1.hash_key() == diff1.hash_key() {
+            panic!("boolean with diff content have same hash keys");
+        }
     }
 }

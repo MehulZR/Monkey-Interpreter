@@ -1,13 +1,13 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{
-        BlockStatement, CallExpression, ExpressionStatement, Identifier, IfExpression,
+        BlockStatement, CallExpression, ExpressionStatement, HashLiteral, Identifier, IfExpression,
         LetStatement, Program, ReturnStatement, Statement, EXPRESSION,
     },
     object::{
-        enclosed_environment, Array, Boolean, Environment, Error, Function, Integer, Null, Object,
-        Return, StringLiteral, BUILTINS,
+        enclosed_environment, Array, Boolean, Environment, Error, Function, HashObject, HashPair,
+        Hashable, Integer, Null, Object, Return, StringLiteral, BUILTINS,
     },
 };
 
@@ -122,8 +122,48 @@ fn eval_expression(exp: EXPRESSION, env: &Rc<RefCell<Environment>>) -> Object {
 
             eval_index_expression(left, index)
         }
+        EXPRESSION::HashLiteral(e) => eval_hash_literal(e, env),
         other => panic!("eval fn not found for expression: {:?}", other),
     }
+}
+
+fn eval_hash_literal(hash_lit: HashLiteral, env: &Rc<RefCell<Environment>>) -> Object {
+    let mut pairs = HashMap::new();
+
+    for (k, v) in hash_lit.pairs {
+        let key = eval_expression(k, env);
+        if is_error(&key) {
+            return key;
+        }
+
+        let hash_key;
+
+        match &key {
+            Object::STRING(o) => {
+                hash_key = o.hash_key();
+            }
+            Object::INTEGER(o) => {
+                hash_key = o.hash_key();
+            }
+            Object::BOOLEAN(o) => {
+                hash_key = o.hash_key();
+            }
+            other => {
+                return Object::ERROR(Error {
+                    msg: format!("unusable as hash key: {:?}", other),
+                });
+            }
+        };
+
+        let value = eval_expression(v, env);
+        if is_error(&value) {
+            return value;
+        }
+
+        pairs.insert(hash_key, HashPair { key, value });
+    }
+
+    Object::HashLitearl(HashObject { pairs })
 }
 
 fn eval_index_expression(left: Object, index: Object) -> Object {
@@ -350,11 +390,13 @@ fn is_error(obj: &Object) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::eval;
 
     use crate::ast::Node;
     use crate::lexer::Lexer;
-    use crate::object::{Object, ObjectTrait};
+    use crate::object::{Boolean, Hashable, Integer, Object, ObjectTrait, StringLiteral};
     use crate::parser::Parser;
 
     #[test]
@@ -1056,6 +1098,69 @@ mod tests {
                 Some(val) => test_integer_object(evaluated_val, val),
                 None => test_null_object(evaluated_val),
             }
+        }
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        let input = r#"let two = "two";
+                {
+                    "one": 10 - 9,
+                    two: 1 + 1,
+                    "thr" + "ee": 6 / 2,
+                    4: 4,
+                    true: 5,
+                    false: 6
+                }"#
+        .to_string();
+
+        let evaluated_val = test_eval(input);
+
+        let hash_object = match evaluated_val {
+            Object::HashLitearl(o) => o,
+            other => panic!("Expected object of type hash. Got: {:?}", other),
+        };
+
+        let mut expected = HashMap::new();
+        expected.insert(
+            StringLiteral {
+                value: "one".to_string(),
+            }
+            .hash_key(),
+            1,
+        );
+        expected.insert(
+            StringLiteral {
+                value: "two".to_string(),
+            }
+            .hash_key(),
+            2,
+        );
+        expected.insert(
+            StringLiteral {
+                value: "three".to_string(),
+            }
+            .hash_key(),
+            3,
+        );
+        expected.insert(Integer { value: 4 }.hash_key(), 4);
+        expected.insert(Boolean { value: true }.hash_key(), 5);
+        expected.insert(Boolean { value: false }.hash_key(), 6);
+
+        if hash_object.pairs.len() != expected.len() {
+            panic!(
+                "Hash has wrong no. of pairs. Got: {}",
+                hash_object.pairs.len()
+            );
+        };
+
+        for (expected_k, expected_v) in expected {
+            let pair = match hash_object.pairs.get(&expected_k) {
+                Some(p) => p,
+                None => panic!("No pair for given key found in hash_object"),
+            };
+
+            test_integer_object(pair.value.clone(), expected_v);
         }
     }
 
