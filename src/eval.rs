@@ -183,6 +183,30 @@ fn eval_index_expression(left: Object, index: Object) -> Object {
 
             arr.elements[i].clone()
         }
+        (Object::HashLitearl(map), i) => {
+            let key;
+            match i {
+                Object::INTEGER(int) => {
+                    key = int.hash_key();
+                }
+                Object::BOOLEAN(boolean) => {
+                    key = boolean.hash_key();
+                }
+                Object::STRING(str) => {
+                    key = str.hash_key();
+                }
+                other => {
+                    return Object::ERROR(Error {
+                        msg: format!("unusable as hash key: {:?}", other),
+                    })
+                }
+            };
+
+            match map.pairs.get(&key) {
+                Some(pair) => pair.value.clone(),
+                None => Object::NULL(Null {}),
+            }
+        }
         (other, _) => panic!("Index operator not supported on {:?}", other),
     }
 }
@@ -898,7 +922,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builtin_fn_len() {
+    fn test_builtin_fn() {
         struct Test {
             input: String,
             expected: String,
@@ -984,6 +1008,10 @@ mod tests {
             Test {
                 input: "push([], 1)".to_string(),
                 expected: "[1]".to_string(),
+            },
+            Test {
+                input: "puts([1, true, \"hello\"])".to_string(),
+                expected: "null".to_string(),
             },
         ];
         for test in tests {
@@ -1161,6 +1189,53 @@ mod tests {
             };
 
             test_integer_object(pair.value.clone(), expected_v);
+        }
+    }
+
+    #[test]
+    fn test_hash_index_expression() {
+        struct Test {
+            input: String,
+            expected: Option<i64>,
+        }
+        let tests = [
+            Test {
+                input: "{\"foo\": 5}[\"foo\"]".to_string(),
+                expected: Some(5),
+            },
+            Test {
+                input: "{\"foo\": 5}[\"bar\"]".to_string(),
+                expected: None,
+            },
+            Test {
+                input: "let key = \"foo\"; {\"foo\": 5}[key]".to_string(),
+                expected: Some(5),
+            },
+            Test {
+                input: "{}[\"foo\"]".to_string(),
+                expected: None,
+            },
+            Test {
+                input: "{5: 5}[5]".to_string(),
+                expected: Some(5),
+            },
+            Test {
+                input: "{true: 5}[true]".to_string(),
+                expected: Some(5),
+            },
+            Test {
+                input: "{false: 5}[false]".to_string(),
+                expected: Some(5),
+            },
+        ];
+
+        for test in tests {
+            let evaluated_val = test_eval(test.input);
+
+            match test.expected {
+                Some(int) => test_integer_object(evaluated_val, int),
+                None => test_null_object(evaluated_val),
+            };
         }
     }
 

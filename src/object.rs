@@ -315,6 +315,7 @@ lazy_static! {
         builtins.insert("last", BuiltInFunc { func: monkey_last });
         builtins.insert("rest", BuiltInFunc { func: monkey_rest });
         builtins.insert("push", BuiltInFunc { func: monkey_push });
+        builtins.insert("puts", BuiltInFunc { func: monkey_puts });
         builtins
     };
 }
@@ -414,6 +415,14 @@ fn monkey_push(args: Vec<Object>) -> Object {
         }
         other => panic!("expected `first` args[0] to be arr. Got: {:?}", other),
     }
+}
+
+fn monkey_puts(args: Vec<Object>) -> Object {
+    for arg in args {
+        println!("{}", arg.inspect())
+    }
+
+    Object::NULL(Null {})
 }
 
 #[derive(Debug, Clone)]
