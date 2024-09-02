@@ -7,7 +7,6 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use std::io::{self, BufRead, Write};
-use users::{get_current_uid, get_user_by_uid};
 lazy_static! {
     static ref EOF_TOKEN: Token = Token {
         r#type: TokenType::EOF,
@@ -15,12 +14,7 @@ lazy_static! {
     };
 }
 pub fn start() {
-    let user = get_user_by_uid(get_current_uid()).unwrap();
-
-    println!(
-        "Hello {}! This is the Monkey programming language!",
-        user.name().to_string_lossy()
-    );
+    println!("Hello! This is the Monkey programming language!",);
     println!("Feel free to type commands");
     print!(">> ");
 

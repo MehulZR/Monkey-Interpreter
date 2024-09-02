@@ -1,0 +1,30 @@
+{
+  "name": "monkey-interpreter-webapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm wasm:build && next dev",
+    "build": "pnpm wasm:build && next build",
+    "start": "pnpm wasm:build && next start",
+    "lint": "pnpm wasm:build && next lint",
+    "wasm:build": "wasm-pack build wasm",
+    "wasm:cli": "cargo run --manifest-path ./wasm/Cargo.toml",
+    "preinstall": "npx only-allow pnpm"
+  },
+  "dependencies": {
+    "monkey_interpreter": "link:wasm/pkg",
+    "next": "14.2.7",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.7",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
