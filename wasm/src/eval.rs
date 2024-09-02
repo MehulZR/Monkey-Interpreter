@@ -206,7 +206,9 @@ fn eval_index_expression(left: Object, index: Object) -> Object {
                 None => Object::NULL(Null {}),
             }
         }
-        (other, _) => panic!("Index operator not supported on {:?}", other),
+        (other, _) => Object::ERROR(Error {
+            msg: format!("Index operator not supported on {:?}", other),
+        }),
     }
 }
 
@@ -235,7 +237,9 @@ fn eval_call_expression(call_exp: CallExpression, env: &Rc<RefCell<Environment>>
             }
         }
         Object::BUILTINFUNC(obj) => (obj.func)(evaluated_args),
-        other => panic!("expected fn object. Got {:?}", other),
+        other => Object::ERROR(Error {
+            msg: format!("expected fn object. Got {:?}", other),
+        }),
     }
 }
 
