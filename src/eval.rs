@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-fn eval(program: Program) -> Object {
+pub fn eval(program: Program) -> Object {
     let env = Rc::new(RefCell::new(Environment::new()));
     eval_statements(program.statements, &env)
 }
@@ -123,7 +123,6 @@ fn eval_expression(exp: EXPRESSION, env: &Rc<RefCell<Environment>>) -> Object {
             eval_index_expression(left, index)
         }
         EXPRESSION::HashLiteral(e) => eval_hash_literal(e, env),
-        other => panic!("eval fn not found for expression: {:?}", other),
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::{
-    ast::Node,
+    eval::eval,
     lexer::Lexer,
+    object::ObjectTrait,
     parser::Parser,
     token::{Token, TokenType},
 };
@@ -40,7 +41,7 @@ pub fn start() {
             if errors.len() > 0 {
                 print_parser_errors(&errors);
             } else {
-                println!("{}", program.string());
+                println!("{}", eval(program).inspect());
             }
         }
 
