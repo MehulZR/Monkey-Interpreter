@@ -4,18 +4,29 @@
   "private": true,
   "scripts": {
     "dev": "pnpm wasm:build && next dev",
-    "build": "pnpm wasm:build && next build",
-    "start": "pnpm wasm:build && next start",
+    "build": "source ./scripts/build.sh",
+    "start": "next start",
     "lint": "pnpm wasm:build && next lint",
-    "wasm:build": "wasm-pack build wasm",
+    "wasm:build": "wasm-pack build wasm --out-dir=../static/wasm/",
     "wasm:cli": "cargo run --manifest-path ./wasm/Cargo.toml",
     "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {
-    "monkey_interpreter": "link:wasm/pkg",
+    "@radix-ui/react-dropdown-menu": "^2.1.1",
+    "@radix-ui/react-select": "^2.1.1",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-toggle": "^1.1.0",
+    "@radix-ui/react-toggle-group": "^1.1.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.438.0",
+    "monkey_interpreter": "link:static/wasm",
     "next": "14.2.7",
+    "next-themes": "^0.3.0",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "tailwind-merge": "^2.5.2",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/node": "^20",
